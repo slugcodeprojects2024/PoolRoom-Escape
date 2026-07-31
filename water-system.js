@@ -35,12 +35,12 @@ export class WaterSystem {
                 new THREE.TextureLoader().load('textures/water-normal.jpg', resolve, undefined, () => resolve(null));
             });
         } catch (e) { normalMap = null; }
-        waterMaterial = new THREE.MeshPhongMaterial({
+        waterMaterial = new THREE.MeshStandardMaterial({
             color: 0x4488cc,
             map: waterTexture || undefined,
             transparent: true,
             opacity: 0.7,
-            shininess: 150,
+            roughness: 0.15, metalness: 0.0,
             specular: 0xffffff,
             normalMap: normalMap || undefined,
             normalScale: normalMap ? new THREE.Vector2(1, 1) : undefined

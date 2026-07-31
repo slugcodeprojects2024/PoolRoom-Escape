@@ -8,20 +8,20 @@ class Goldfish {
         // Body
         const body = new THREE.Mesh(
             new THREE.SphereGeometry(6, 16, 16),
-            new THREE.MeshPhongMaterial({ color: 0xffa500, shininess: 80 })
+            new THREE.MeshStandardMaterial({ color: 0xffa500, roughness: 0.35, metalness: 0.0 })
         );
         body.scale.set(1.5, 1, 1);
         this.group.add(body);
         // Tail
         const tail = new THREE.Mesh(
             new THREE.ConeGeometry(3, 6, 12),
-            new THREE.MeshPhongMaterial({ color: 0xffc04d, shininess: 60 })
+            new THREE.MeshStandardMaterial({ color: 0xffc04d, roughness: 0.45, metalness: 0.0 })
         );
         tail.position.set(-9, 0, 0); // Attach to back of body
         tail.rotation.z = Math.PI / 2; // Point tail along -X
         this.group.add(tail);
         // Fins
-        const finMat = new THREE.MeshPhongMaterial({ color: 0xffe066, shininess: 60 });
+        const finMat = new THREE.MeshStandardMaterial({ color: 0xffe066, roughness: 0.45, metalness: 0.0 });
         const fin1 = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3, 8), finMat);
         fin1.position.set(0, 3, 2);
         fin1.rotation.x = Math.PI / 2;
@@ -30,7 +30,7 @@ class Goldfish {
         fin2.position.set(0, 3, -2);
         this.group.add(fin2);
         // Eyes
-        const eyeMat = new THREE.MeshPhongMaterial({ color: 0x222222 });
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
         const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 8), eyeMat);
         eye1.position.set(7, 1.5, 2);
         this.group.add(eye1);

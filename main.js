@@ -1,5 +1,6 @@
 // main.js - Fixed Three.js Poolrooms Application Entry Point
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CameraControls } from './camera-controls.js';
 import { PoolroomWorld } from './poolroom-world.js';
 import { WaterSystem } from './water-system.js';
@@ -97,6 +98,11 @@ class PoolroomsApp {
         
         // Handle window resize
         window.addEventListener('resize', () => this.onWindowResize(), false);
+
+        const pmrem = new THREE.PMREMGenerator(this.renderer);
+        pmrem.compileEquirectangularShader();
+        this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+        this.scene.environmentIntensity = 0.8;
         
         console.log('🎮 Three.js core initialized with fixed camera position');
     }

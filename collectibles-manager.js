@@ -11,7 +11,6 @@ export class CollectiblesManager {
         this.collected = 0;
         this.totalCount = 0;
         this.models = [
-            'cornellbox-empty-co.glb',
             'eyeball.glb',
             'trumpet.glb',
             'dragon.glb',
@@ -70,9 +69,9 @@ export class CollectiblesManager {
             // Apply glass.jpg texture to all meshes
             obj.traverse(child => {
                 if (child.isMesh) {
-                    child.material = new THREE.MeshPhongMaterial({
+                    child.material = new THREE.MeshStandardMaterial({
                         map: this.texture,
-                        shininess: 80
+                        roughness: 0.35, metalness: 0.0
                     });
                 }
             });
@@ -94,18 +93,18 @@ export class CollectiblesManager {
                         if (child.isMesh) {
                             const isHead = filename.endsWith('head.glb');
                             if (this.stoneTexture && isHead) {
-                                child.material = new THREE.MeshPhongMaterial({
+                                child.material = new THREE.MeshStandardMaterial({
                                     map: this.stoneTexture,
-                                    shininess: 80
+                                    roughness: 0.35, metalness: 0.0
                                 });
                                 console.log('Applied stone.jpg texture to head.glb');
                             } else if (this.texture && this.models.includes(filename.replace('models/', ''))) {
-                                child.material = new THREE.MeshPhongMaterial({
+                                child.material = new THREE.MeshStandardMaterial({
                                     map: this.texture,
-                                    shininess: 80
+                                    roughness: 0.35, metalness: 0.0
                                 });
                             } else {
-                                child.material = new THREE.MeshPhongMaterial({ color: 0xffff00, shininess: 80 });
+                                child.material = new THREE.MeshStandardMaterial({ color: 0xffff00, roughness: 0.35, metalness: 0.0 });
                             }
                         }
                     });
