@@ -52,9 +52,6 @@ class PoolroomsApp {
             // Initialize collectibles
             this.collectiblesManager = new CollectiblesManager(this.scene);
             await this.collectiblesManager.init();
-
-            // Setup lighting controls
-            this.setupLightingControls();
             
             // After poolroomWorld is created and pool is initialized
             this.goldfishSystem = new GoldfishSystem(this.scene, this.poolroomWorld.getPoolBounds(), 8);
@@ -174,31 +171,6 @@ class PoolroomsApp {
     getCamera() { return this.camera; }
     getScene() { return this.scene; }
     getRenderer() { return this.renderer; }
-
-    setupLightingControls() {
-        const ambientSlider = document.getElementById('ambient-slider');
-        const sunSlider = document.getElementById('sun-slider');
-        const ambientValue = document.getElementById('ambient-value');
-        const sunValue = document.getElementById('sun-value');
-        // Ambient
-        if (ambientSlider && ambientValue && this.poolroomWorld.ambientLight) {
-            ambientSlider.value = this.poolroomWorld.ambientLight.intensity;
-            ambientValue.textContent = this.poolroomWorld.ambientLight.intensity.toFixed(2);
-            ambientSlider.addEventListener('input', () => {
-                this.poolroomWorld.ambientLight.intensity = parseFloat(ambientSlider.value);
-                ambientValue.textContent = ambientSlider.value;
-            });
-        }
-        // Sun
-        if (sunSlider && sunValue && this.poolroomWorld.sunLight) {
-            sunSlider.value = this.poolroomWorld.sunLight.intensity;
-            sunValue.textContent = this.poolroomWorld.sunLight.intensity.toFixed(2);
-            sunSlider.addEventListener('input', () => {
-                this.poolroomWorld.sunLight.intensity = parseFloat(sunSlider.value);
-                sunValue.textContent = sunSlider.value;
-            });
-        }
-    }
 }
 
 // Initialize application when page loads
