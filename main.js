@@ -35,7 +35,6 @@ class PoolroomsApp {
             // Create world
             this.poolroomWorld = new PoolroomWorld(this.scene);
             await this.poolroomWorld.init();
-            this.poolroomWorld.addSunAndLight();
             
             // Setup camera controls
             this.cameraControls = new CameraControls(
@@ -59,6 +58,8 @@ class PoolroomsApp {
             
             // After poolroomWorld is created and pool is initialized
             this.goldfishSystem = new GoldfishSystem(this.scene, this.poolroomWorld.getPoolBounds(), 8);
+
+            this.poolroomWorld.enableShadows();
             
             // Start render loop
             this.animate();
@@ -81,25 +82,18 @@ class PoolroomsApp {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xE6F3FF);  // Very light blue-white background
         
-        // Create camera - FIXED STARTING POSITION
-        this.camera = new THREE.PerspectiveCamera(
-            75, 
-            window.innerWidth / window.innerHeight, 
-            0.1, 
-            2000
-        );
-        // Start ABOVE GROUND at edge of pool area with good view
-        this.camera.position.set(0, 50, 250); // x=0 (center), y=30 (higher above floor), z=250 (back from pool)
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 6000);
+        this.camera.rotation.order = 'YXZ';   // stops roll-wobble when yaw+pitch combine
+        this.camera.position.set(0, 20, 250);
         
         // Create renderer
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
-        this.renderer.toneMapping = THREE.LinearToneMapping;
-        this.renderer.toneMappingExposure = 1.5;  // Bright but not blown out
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
         
         // Add to DOM
         document.getElementById('canvas-container').appendChild(this.renderer.domElement);

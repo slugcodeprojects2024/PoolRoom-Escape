@@ -55,8 +55,7 @@ export class PoolroomWorld {
         this.createTexturedMaterials();
         await this.createBasicSkybox();
         this.createGameWorldBackground();
-        // Add ambient and hemisphere lights
-        this.addAmbientAndHemisphereLights();
+        this.setupLighting();
         
         // Main poolroom
         this.createBasicFloor();
@@ -159,6 +158,7 @@ export class PoolroomWorld {
             });
             
             Object.values(this.textures).forEach(texture => {
+                texture.colorSpace = THREE.SRGBColorSpace;
                 texture.wrapS = THREE.RepeatWrapping;
                 texture.wrapT = THREE.RepeatWrapping;
                 texture.magFilter = THREE.LinearFilter;
@@ -186,6 +186,7 @@ export class PoolroomWorld {
             'textures/sky.png', // front
             'textures/sky.png'  // back
         ]);
+        skyboxTexture.colorSpace = THREE.SRGBColorSpace;
         this.scene.background = skyboxTexture;
     }
     
@@ -222,6 +223,7 @@ export class PoolroomWorld {
             }
             
             const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace = THREE.SRGBColorSpace;
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             texture.magFilter = THREE.LinearFilter;
@@ -336,6 +338,7 @@ export class PoolroomWorld {
         ctx.strokeRect(0, 0, 32, 32);
         
         const tileTexture = new THREE.CanvasTexture(canvas);
+        tileTexture.colorSpace = THREE.SRGBColorSpace;
         tileTexture.wrapS = THREE.RepeatWrapping;
         tileTexture.wrapT = THREE.RepeatWrapping;
         tileTexture.magFilter = THREE.NearestFilter;
@@ -399,6 +402,7 @@ export class PoolroomWorld {
         ctx.strokeRect(0, 0, 32, 32);
         
         const tileTexture = new THREE.CanvasTexture(canvas);
+        tileTexture.colorSpace = THREE.SRGBColorSpace;
         tileTexture.wrapS = THREE.RepeatWrapping;
         tileTexture.wrapT = THREE.RepeatWrapping;
         tileTexture.magFilter = THREE.NearestFilter;
@@ -490,6 +494,7 @@ export class PoolroomWorld {
         ctx.strokeRect(0, 0, 32, 32);
         
         const tileTexture = new THREE.CanvasTexture(canvas);
+        tileTexture.colorSpace = THREE.SRGBColorSpace;
         tileTexture.wrapS = THREE.RepeatWrapping;
         tileTexture.wrapT = THREE.RepeatWrapping;
         tileTexture.magFilter = THREE.NearestFilter;
@@ -1075,34 +1080,52 @@ export class PoolroomWorld {
         }
     }
 
-    // Add a sun mesh and a directional light
-    addSunAndLight() {
-        // 1. AmbientLight (low)
+    setupLighting() {
+        // Fill only — everything else should come from a direction
         this.ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
         this.scene.add(this.ambientLight);
-        // 2. DirectionalLight (sun)
-        this.sunLight = new THREE.DirectionalLight(0xffee88, 2.5);
-        const sunPos = new THREE.Vector3(0, 600, 0);
-        this.sunLight.position.copy(sunPos);
+
+        // Desaturated ground color so it stops tinting the white tile green
+        this.hemiLight = new THREE.HemisphereLight(0xbcd8ff, 0xb0a894, 0.35);
+        this.scene.add(this.hemiLight);
+
+        this.sunLight = new THREE.DirectionalLight(0xfff4e0, 2.2);
+        this.sunLight.position.set(420, 520, 300);   // off-axis: rakes instead of flattens
         this.sunLight.target.position.set(0, 0, 0);
         this.sunLight.castShadow = true;
-        this.scene.add(this.sunLight);
-        this.scene.add(this.sunLight.target);
-        // Add a visible sun sphere at the sun's position
+
+        const s = this.sunLight.shadow;
+        s.mapSize.set(2048, 2048);
+        s.camera.left = -700;  s.camera.right = 700;
+        s.camera.top  =  700;  s.camera.bottom = -700;
+        s.camera.near = 1;     s.camera.far = 2500;
+        s.bias = -0.0005;
+        s.normalBias = 1.0;    // large because world units are ~12 per meter here
+        s.camera.updateProjectionMatrix();
+
+        this.scene.add(this.sunLight, this.sunLight.target);
+
         const sunSphere = new THREE.Mesh(
             new THREE.SphereGeometry(60, 32, 32),
-            new THREE.MeshStandardMaterial({ color: 0xFFFACD, emissive: 0xFFFF99, emissiveIntensity: 2 })
+            new THREE.MeshBasicMaterial({ color: 0xfff8e0 })
         );
-        sunSphere.position.copy(sunPos);
+        sunSphere.position.copy(this.sunLight.position).multiplyScalar(2.5);
+        sunSphere.userData.noShadow = true;
         this.scene.add(sunSphere);
-        // 3. Grotto PointLight (hot tub light)
+
+        // Physical units: intensity ≈ desired × distance². 25000 reads at ~50 units.
         const templeZ = -this.roomSize/2 - this.walkwayLength - this.templeSize/2;
-        const grottoX = -this.templeSize/2 - 120;
-        const grottoZ = templeZ;
-        // Make the light very visible for debugging
-        this.grottoLight = new THREE.PointLight(0x00ffff, 8, 1000);
-        this.grottoLight.position.set(grottoX, 10, grottoZ);
+        this.grottoLight = new THREE.PointLight(0x66e0ff, 25000, 600, 2);
+        this.grottoLight.position.set(-this.templeSize/2 - 120, 20, templeZ);
         this.scene.add(this.grottoLight);
+    }
+
+    enableShadows() {
+        this.scene.traverse(obj => {
+            if (!obj.isMesh || obj.userData.noShadow) return;
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+        });
     }
 
     createTorchLights(templeZ) {
@@ -1191,11 +1214,6 @@ export class PoolroomWorld {
             shininess: 100,
             specular: 0xffffff
         });
-        
-        // Add temple-specific ambient light
-        const templeAmbient = new THREE.AmbientLight(0xffffff, 0.3);
-        templeAmbient.position.set(0, 70, templeZ);
-        this.scene.add(templeAmbient);
         
         for (let i = 0; i < 6; i++) {
             const angle = (i / 6) * Math.PI * 2;
@@ -1301,16 +1319,6 @@ export class PoolroomWorld {
             object.position.set(0, 70, this.getTempleBounds().z);
             this.templeGroup.add(object);
         }, undefined, (e) => console.error('head.glb:', e));
-    }
-
-    addAmbientAndHemisphereLights() {
-        // Ambient light for poolroom - increased intensity
-        this.ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
-        this.scene.add(this.ambientLight);
-        
-        // Hemisphere light for global illumination - adjusted colors and intensity
-        const hemi = new THREE.HemisphereLight(0x87ceeb, 0x3ecf4a, 0.4);
-        this.scene.add(hemi);
     }
 
     update() {
