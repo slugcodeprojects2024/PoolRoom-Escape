@@ -46,9 +46,22 @@ class PoolroomsApp {
             );
             this.cameraControls.init();
             
-            // Initialize water system
-            this.waterSystem = new WaterSystem(this.scene);
+            // Initialize water system, sized from the pool it sits in
+            const pb = this.poolroomWorld.getPoolBounds();
+            this.waterSystem = new WaterSystem(this.scene, {
+                size: pb.width,
+                waterLevel: pb.waterLevel,
+                floorY: pb.floorY
+            });
             this.waterSystem.init();
+
+            // Inject caustics into every surface below the waterline.
+            // Must run before first render — onBeforeCompile only fires on compile.
+            if (this.poolroomWorld.poolSurfaceMaterials) {
+                this.poolroomWorld.poolSurfaceMaterials.forEach(
+                    m => this.waterSystem.applyCaustics(m)
+                );
+            }
             
             // Initialize collectibles
             this.collectiblesManager = new CollectiblesManager(this.scene);
@@ -73,7 +86,7 @@ class PoolroomsApp {
             console.log('✅ Poolrooms application initialized successfully!');
             
         } catch (error) {
-            console.error('❌ Failed to initialize poolrooms:', error);
+            console.error('❌ Failed to initialize poolrooms:', error && error.stack ? error.stack : error);
             document.getElementById('loading').innerHTML = 
                 '<div style="color: red;">❌ Failed to load poolrooms</div>';
         }
@@ -122,7 +135,7 @@ class PoolroomsApp {
         }
         
         if (this.waterSystem) {
-            this.waterSystem.update(deltaTime);
+            this.waterSystem.update(deltaTime, this.camera.position);
         }
         
         if (this.collectiblesManager) {
@@ -132,11 +145,6 @@ class PoolroomsApp {
         // Animate art gallery shapes
         if (this.poolroomWorld && this.poolroomWorld.updateAnimatedShapes) {
             this.poolroomWorld.updateAnimatedShapes(deltaTime);
-        }
-        
-        // Update SpotLightHelper every frame
-        if (this.poolroomWorld && this.poolroomWorld.updatePoolSpotLightHelper) {
-            this.poolroomWorld.updatePoolSpotLightHelper();
         }
         
         // Update goldfish system
@@ -158,15 +166,6 @@ class PoolroomsApp {
             document.getElementById('collectibles-counter').textContent = 
                 `Collectibles: ${collected}/${total}`;
         }
-        // Underwater overlay
-        const overlay = document.getElementById('underwater-overlay');
-        let isUnderwater = false;
-        if (this.cameraControls && typeof this.cameraControls.isInWater === 'function') {
-            isUnderwater = this.cameraControls.isInWater();
-        } else if (this.camera) {
-            isUnderwater = this.camera.position.y < -0.5;
-        }
-        overlay.style.display = isUnderwater ? 'block' : 'none';
     }
     
     onWindowResize() {

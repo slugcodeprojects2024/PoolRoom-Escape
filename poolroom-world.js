@@ -471,18 +471,22 @@ export class PoolroomWorld {
     }
     
     createBasicPool() {
-        // Pool floor (bottom) - use stone_bricks.png texture
+        // Materials that sit below the waterline get caustics injected by WaterSystem
+        this.poolSurfaceMaterials = [];
+
         let poolBottomMaterial;
         if (this.textures && this.textures.stoneBricks) {
             const tex = this.textures.stoneBricks.clone();
             tex.wrapS = THREE.RepeatWrapping;
             tex.wrapT = THREE.RepeatWrapping;
-            tex.repeat.set(8, 8); // Tile the texture
+            tex.repeat.set(8, 8);
             tex.needsUpdate = true;
-            poolBottomMaterial = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35, metalness: 0.0, side: THREE.DoubleSide });
+            poolBottomMaterial = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.0, side: THREE.FrontSide });
         } else {
-            poolBottomMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.35, metalness: 0.0, side: THREE.DoubleSide }); // fallback, visible
+            poolBottomMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.5, metalness: 0.0, side: THREE.FrontSide });
         }
+        this.poolSurfaceMaterials.push(poolBottomMaterial);
+
         const poolBottom = new THREE.Mesh(
             new THREE.PlaneGeometry(this.poolWidth, this.poolDepth),
             poolBottomMaterial
@@ -492,48 +496,35 @@ export class PoolroomWorld {
         this.poolGroup.add(poolBottom);
         this.poolBottomMesh = poolBottom;
 
-        // Pool walls (4 sides) - use stone_bricks.png texture if available
         let wallMat;
         if (this.textures && this.textures.stoneBricks) {
             const wallTex = this.textures.stoneBricks.clone();
             wallTex.wrapS = THREE.RepeatWrapping;
             wallTex.wrapT = THREE.RepeatWrapping;
-            wallTex.repeat.set(8, 1); // Tile horizontally, less vertically
+            wallTex.repeat.set(8, 2);
             wallTex.needsUpdate = true;
-            wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8, metalness: 0.0, side: THREE.DoubleSide });
+            wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8, metalness: 0.0, side: THREE.FrontSide });
         } else {
-            wallMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, side: THREE.DoubleSide }); // fallback
+            wallMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, side: THREE.FrontSide });
         }
-        const wallH = this.poolDepthValue;
-        // North wall
-        const northWall = new THREE.Mesh(
-            new THREE.PlaneGeometry(this.poolWidth, wallH), wallMat.clone()
-        );
-        northWall.position.set(0, -wallH/2, -this.poolDepth/2);
-        this.poolGroup.add(northWall);
-        // South wall
-        const southWall = new THREE.Mesh(
-            new THREE.PlaneGeometry(this.poolWidth, wallH), wallMat.clone()
-        );
-        southWall.position.set(0, -wallH/2, this.poolDepth/2);
-        southWall.rotation.y = Math.PI;
-        this.poolGroup.add(southWall);
-        // East wall
-        const eastWall = new THREE.Mesh(
-            new THREE.PlaneGeometry(this.poolDepth, wallH), wallMat.clone()
-        );
-        eastWall.position.set(this.poolWidth/2, -wallH/2, 0);
-        eastWall.rotation.y = -Math.PI/2;
-        this.poolGroup.add(eastWall);
-        // West wall
-        const westWall = new THREE.Mesh(
-            new THREE.PlaneGeometry(this.poolDepth, wallH), wallMat.clone()
-        );
-        westWall.position.set(-this.poolWidth/2, -wallH/2, 0);
-        westWall.rotation.y = Math.PI/2;
-        this.poolGroup.add(westWall);
 
-        // Pool edges (unchanged)
+        const wallH = this.poolDepthValue;
+        const wallDefs = [
+            { w: this.poolWidth, pos: [0, -wallH/2, -this.poolDepth/2], rotY: 0 },
+            { w: this.poolWidth, pos: [0, -wallH/2, this.poolDepth/2], rotY: Math.PI },
+            { w: this.poolDepth, pos: [this.poolWidth/2, -wallH/2, 0], rotY: -Math.PI/2 },
+            { w: this.poolDepth, pos: [-this.poolWidth/2, -wallH/2, 0], rotY: Math.PI/2 }
+        ];
+        wallDefs.forEach(def => {
+            // Each wall owns its material clone, so each needs registering for caustics
+            const mat = wallMat.clone();
+            this.poolSurfaceMaterials.push(mat);
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(def.w, wallH), mat);
+            mesh.position.set(...def.pos);
+            mesh.rotation.y = def.rotY;
+            this.poolGroup.add(mesh);
+        });
+
         const edgeHeight = 0.2;
         const edgeWidth = 2;
         const edges = [
