@@ -104,7 +104,7 @@ class PoolroomsApp {
         const pmrem = new THREE.PMREMGenerator(this.renderer);
         pmrem.compileEquirectangularShader();
         this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-        this.scene.environmentIntensity = 0.55;
+        this.scene.environmentIntensity = 0.70;
         
         console.log('🎮 Three.js core initialized with fixed camera position');
     }

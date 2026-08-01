@@ -222,7 +222,7 @@ export class PoolroomWorld {
                 ceiling: new THREE.MeshStandardMaterial({
                     color: 0xf0f0f0,
                     roughness: 0.7, metalness: 0.0,
-                    side: THREE.DoubleSide
+                    side: THREE.FrontSide
                 }),
                 pool: new THREE.MeshStandardMaterial({
                     color: 0xb0d0ff,
@@ -277,7 +277,7 @@ export class PoolroomWorld {
         this.materials = {
             floor: new THREE.MeshStandardMaterial({ color: 0xf5f5f0, roughness: 0.7, metalness: 0.0, side: THREE.DoubleSide }),
             wall: new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.7, metalness: 0.0, side: THREE.DoubleSide }),
-            ceiling: new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.7, metalness: 0.0, side: THREE.DoubleSide }),
+            ceiling: new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.7, metalness: 0.0, side: THREE.FrontSide }),
             pool: new THREE.MeshStandardMaterial({ color: 0xb0d0ff, roughness: 0.25, metalness: 0.0, side: THREE.DoubleSide }),
             pillar: new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.5, metalness: 0.0 }),
             temple: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.0, side: THREE.DoubleSide }),
@@ -457,8 +457,8 @@ export class PoolroomWorld {
             const ceiling = new THREE.Mesh(section.geometry, ceilingMaterial.clone());
             ceiling.rotation.x = Math.PI / 2; // normal faces -Y (into the room)
             ceiling.position.set(...section.position);
-            // Underside never sees the sun; receiving its shadow map paints it charcoal.
-            ceiling.userData.noShadow = true;
+            // DoubleSide plane + castShadow self-shadows the whole underside
+            ceiling.userData.noCast = true;
             const width = section.geometry.parameters.width;
             const height = section.geometry.parameters.height;
             ceiling.material.map = ceiling.material.map.clone();
@@ -1006,7 +1006,7 @@ export class PoolroomWorld {
     enableShadows() {
         this.scene.traverse(obj => {
             if (!obj.isMesh || obj.userData.noShadow) return;
-            obj.castShadow = true;
+            obj.castShadow = !obj.userData.noCast;
             obj.receiveShadow = true;
         });
     }
