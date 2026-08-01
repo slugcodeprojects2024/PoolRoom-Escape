@@ -80,9 +80,7 @@ class PoolroomsApp {
     }
     
     initThreeJS() {
-        // Create scene with bright background
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xE6F3FF);  // Very light blue-white background
         
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 6000);
         this.camera.rotation.order = 'YXZ';   // stops roll-wobble when yaw+pitch combine
@@ -95,7 +93,6 @@ class PoolroomsApp {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        // Interior exposure; Sky is excluded via material.toneMapped = false
         this.renderer.toneMappingExposure = 0.85;
         
         // Add to DOM

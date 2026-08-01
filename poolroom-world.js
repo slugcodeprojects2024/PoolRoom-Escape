@@ -16,6 +16,8 @@ export class PoolroomWorld {
         this.poolDepth = 480;
         this.poolDepthValue = 90;
         this.openingSize = 240;
+        // Shared by Sky sunPosition and DirectionalLight — animate this in endgame
+        this.sunDirection = new THREE.Vector3(420, 520, 300);
         
         // NEW: Walkway and temple dimensions - EXPANDED
         this.walkwayLength = 800;    // DOUBLED from 400
@@ -181,20 +183,15 @@ export class PoolroomWorld {
         const sky = new Sky();
         sky.scale.setScalar(450000);
         sky.userData.noShadow = true;
-        // Sky shader already applies its own tone curve; a second ACES pass
-        // rolls the whole dome to white (what you see through oculus/windows).
-        sky.material.toneMapped = false;
         this.scene.add(sky);
 
         const uniforms = sky.material.uniforms;
         uniforms['turbidity'].value = 2;
-        uniforms['rayleigh'].value = 3;
-        uniforms['mieCoefficient'].value = 0.005;
+        uniforms['rayleigh'].value = 1;
+        uniforms['mieCoefficient'].value = 0.001;
         uniforms['mieDirectionalG'].value = 0.8;
 
-        // Match the directional sun in setupLighting
-        const sun = new THREE.Vector3(420, 520, 300).normalize();
-        uniforms['sunPosition'].value.copy(sun);
+        uniforms['sunPosition'].value.copy(this.sunDirection).normalize();
 
         this.scene.background = null;
         this.sky = sky;
@@ -969,7 +966,7 @@ export class PoolroomWorld {
         this.scene.add(this.hemiLight);
 
         this.sunLight = new THREE.DirectionalLight(0xfff4e0, 2.2);
-        this.sunLight.position.set(420, 520, 300);   // off-axis: rakes instead of flattens
+        this.sunLight.position.copy(this.sunDirection);   // off-axis: rakes instead of flattens
         this.sunLight.target.position.set(0, 0, 0);
         this.sunLight.castShadow = true;
 
