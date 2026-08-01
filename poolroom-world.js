@@ -181,6 +181,9 @@ export class PoolroomWorld {
         const sky = new Sky();
         sky.scale.setScalar(450000);
         sky.userData.noShadow = true;
+        // Sky shader already applies its own tone curve; a second ACES pass
+        // rolls the whole dome to white (what you see through oculus/windows).
+        sky.material.toneMapped = false;
         this.scene.add(sky);
 
         const uniforms = sky.material.uniforms;
@@ -455,10 +458,13 @@ export class PoolroomWorld {
         
         ceilingSections.forEach(section => {
             const ceiling = new THREE.Mesh(section.geometry, ceilingMaterial.clone());
-            ceiling.rotation.x = Math.PI / 2;
+            ceiling.rotation.x = Math.PI / 2; // normal faces -Y (into the room)
             ceiling.position.set(...section.position);
+            // Underside never sees the sun; receiving its shadow map paints it charcoal.
+            ceiling.userData.noShadow = true;
             const width = section.geometry.parameters.width;
             const height = section.geometry.parameters.height;
+            ceiling.material.map = ceiling.material.map.clone();
             ceiling.material.map.repeat.set(width / tileSize, height / tileSize);
             ceiling.material.map.needsUpdate = true;
             this.architectureGroup.add(ceiling);
@@ -959,7 +965,7 @@ export class PoolroomWorld {
 
         // Desaturated ground color so it stops tinting the white tile green
         // 0.7 + env 0.9 blew out white tile around window openings
-        this.hemiLight = new THREE.HemisphereLight(0xbcd8ff, 0xf2f0ec, 0.4);
+        this.hemiLight = new THREE.HemisphereLight(0xbcd8ff, 0xf2f0ec, 0.55);
         this.scene.add(this.hemiLight);
 
         this.sunLight = new THREE.DirectionalLight(0xfff4e0, 2.2);

@@ -95,8 +95,8 @@ class PoolroomsApp {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        // Sky addon is HDR; 1.0 rolls the zenith to white under ACES
-        this.renderer.toneMappingExposure = 0.55;
+        // Interior exposure; Sky is excluded via material.toneMapped = false
+        this.renderer.toneMappingExposure = 0.85;
         
         // Add to DOM
         document.getElementById('canvas-container').appendChild(this.renderer.domElement);
