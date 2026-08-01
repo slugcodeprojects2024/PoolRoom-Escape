@@ -55,7 +55,11 @@ class PoolroomsApp {
             await this.collectiblesManager.init();
             
             // After poolroomWorld is created and pool is initialized
-            this.goldfishSystem = new GoldfishSystem(this.scene, this.poolroomWorld.getPoolBounds(), 8);
+            this.goldfishSystem = new GoldfishSystem(
+                this.scene,
+                this.poolroomWorld.getPoolBounds(),
+                14
+            );
 
             this.poolroomWorld.enableShadows();
             
@@ -91,7 +95,8 @@ class PoolroomsApp {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0;
+        // Sky addon is HDR; 1.0 rolls the zenith to white under ACES
+        this.renderer.toneMappingExposure = 0.55;
         
         // Add to DOM
         document.getElementById('canvas-container').appendChild(this.renderer.domElement);
@@ -102,7 +107,7 @@ class PoolroomsApp {
         const pmrem = new THREE.PMREMGenerator(this.renderer);
         pmrem.compileEquirectangularShader();
         this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-        this.scene.environmentIntensity = 0.8;
+        this.scene.environmentIntensity = 0.55;
         
         console.log('🎮 Three.js core initialized with fixed camera position');
     }

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 
 export class PoolroomWorld {
     constructor(scene) {
@@ -13,7 +14,7 @@ export class PoolroomWorld {
         this.wallHeight = 150;
         this.poolWidth = 480;
         this.poolDepth = 480;
-        this.poolDepthValue = 20;
+        this.poolDepthValue = 90;
         this.openingSize = 240;
         
         // NEW: Walkway and temple dimensions - EXPANDED
@@ -63,7 +64,6 @@ export class PoolroomWorld {
         this.createBasicCeiling();
         this.createBasicPool();
         this.createBasicPillars();
-        this.createWallOpenings();
         
         // NEW: Door, walkway, and temple
         // this.createDoor(); // COMMENTED OUT: Door is disabled for now
@@ -177,18 +177,24 @@ export class PoolroomWorld {
     }
     
     async createBasicSkybox() {
-        // Use the same sky.png for all 6 faces of the cube skybox
-        const loader = new THREE.CubeTextureLoader();
-        const skyboxTexture = loader.load([
-            'textures/sky.png', // right
-            'textures/sky.png', // left
-            'textures/sky.png', // top
-            'textures/sky.png', // bottom
-            'textures/sky.png', // front
-            'textures/sky.png'  // back
-        ]);
-        skyboxTexture.colorSpace = THREE.SRGBColorSpace;
-        this.scene.background = skyboxTexture;
+        // Atmospheric sky (vertical depth) until Phase 6 cubemap
+        const sky = new Sky();
+        sky.scale.setScalar(450000);
+        sky.userData.noShadow = true;
+        this.scene.add(sky);
+
+        const uniforms = sky.material.uniforms;
+        uniforms['turbidity'].value = 2;
+        uniforms['rayleigh'].value = 3;
+        uniforms['mieCoefficient'].value = 0.005;
+        uniforms['mieDirectionalG'].value = 0.8;
+
+        // Match the directional sun in setupLighting
+        const sun = new THREE.Vector3(420, 520, 300).normalize();
+        uniforms['sunPosition'].value.copy(sun);
+
+        this.scene.background = null;
+        this.sky = sky;
     }
     
     createTexturedMaterials() {
@@ -354,79 +360,62 @@ export class PoolroomWorld {
         console.log('Floor created');
     }
     
+    createWallPanel(width, height, openings, depth = 6) {
+        const shape = new THREE.Shape();
+        shape.moveTo(-width/2, 0);
+        shape.lineTo( width/2, 0);
+        shape.lineTo( width/2, height);
+        shape.lineTo(-width/2, height);
+
+        for (const o of openings) {
+            const hole = new THREE.Path();
+            hole.moveTo(o.x - o.w/2, o.y);
+            hole.lineTo(o.x + o.w/2, o.y);
+            hole.lineTo(o.x + o.w/2, o.y + o.h);
+            hole.lineTo(o.x - o.w/2, o.y + o.h);
+            shape.holes.push(hole);
+        }
+
+        const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+        geo.translate(0, 0, -depth/2);   // center on its own plane
+        return geo;
+    }
+
     createBasicWalls() {
-        const tileTexture = this.createTileTexture();
-        
-        const roomSize = this.roomSize;
-        const wallHeight = this.wallHeight;
-        const tileSize = 10;
-        const wallOffset = 2;
-        
-        // Create walls but with a gap in the north wall for the door
-        const doorWidth = 100;
-        const doorOffset = 0; // CENTER THE DOOR
-        
-        // North wall - split around centered door
-        const northWallSections = [
-            // Left section
-            {
-                width: (roomSize/2) - (doorWidth/2),
-                position: [-roomSize/2 + wallOffset + ((roomSize/2) - (doorWidth/2))/2, wallHeight/2, -roomSize/2 + wallOffset],
-                rotation: [0, 0, 0]
-            },
-            // Right section  
-            {
-                width: (roomSize/2) - (doorWidth/2),
-                position: [(doorWidth/2) + ((roomSize/2) - (doorWidth/2))/2, wallHeight/2, -roomSize/2 + wallOffset],
-                rotation: [0, 0, 0]
-            }
-        ];
-        
-        northWallSections.forEach(section => {
-            const material = this.materials.wall.clone();
-            material.map = tileTexture.clone();
-            const wall = new THREE.Mesh(new THREE.PlaneGeometry(section.width, wallHeight), material);
-            wall.position.set(...section.position);
-            wall.rotation.set(...section.rotation);
-            wall.material.map.repeat.set(section.width / tileSize, wallHeight / tileSize);
-            wall.material.map.needsUpdate = true;
-            this.architectureGroup.add(wall);
+        const tex = this.createTileTexture();
+        tex.repeat.set(1/10, 1/10);   // UVs are in world units → 10 units per tile
+
+        const mat = new THREE.MeshStandardMaterial({
+            map: tex, roughness: 0.8, metalness: 0.0, side: THREE.FrontSide
         });
-        
-        // Other walls (no changes)
-        const otherWalls = [
-            // South wall  
-            {
-                geometry: new THREE.PlaneGeometry(roomSize, wallHeight),
-                position: [0, wallHeight/2, roomSize/2 - wallOffset],
-                rotation: [0, Math.PI, 0]
-            },
-            // East wall
-            {
-                geometry: new THREE.PlaneGeometry(roomSize, wallHeight),
-                position: [roomSize/2 - wallOffset, wallHeight/2, 0],
-                rotation: [0, -Math.PI/2, 0]
-            },
-            // West wall
-            {
-                geometry: new THREE.PlaneGeometry(roomSize, wallHeight),
-                position: [-roomSize/2 + wallOffset, wallHeight/2, 0],
-                rotation: [0, Math.PI/2, 0]
-            }
+
+        const R = this.roomSize, H = this.wallHeight;
+        const openW = 90, openH = 105, openY = 25, spacing = 170;
+
+        // 5 openings spread across a full-width wall
+        const fullOpenings = [-2,-1,0,1,2].map(i => ({ x: i*spacing, y: openY, w: openW, h: openH }));
+
+        const walls = [
+            { w: R, openings: fullOpenings, pos: [0, 0,  R/2], rot: 0 },
+            { w: R, openings: fullOpenings, pos: [ R/2, 0, 0], rot: -Math.PI/2 },
+            { w: R, openings: fullOpenings, pos: [-R/2, 0, 0], rot:  Math.PI/2 }
         ];
-        
-        otherWalls.forEach((wallData, index) => {
-            const material = this.materials.wall.clone();
-            material.map = tileTexture.clone();
-            const wall = new THREE.Mesh(wallData.geometry, material);
-            wall.position.set(...wallData.position);
-            wall.rotation.set(...wallData.rotation);
-            wall.material.map.repeat.set(roomSize / tileSize, wallHeight / tileSize);
-            wall.material.map.needsUpdate = true;
-            this.architectureGroup.add(wall);
+
+        // North wall: two panels flanking the doorway
+        const doorW = 100, panelW = (R - doorW) / 2;
+        const nearEdge = doorW/2 + panelW/2;
+        const northOpenings = [{ x: 0, y: openY, w: openW, h: openH }];
+        walls.push({ w: panelW, openings: northOpenings, pos: [-nearEdge, 0, -R/2], rot: 0 });
+        walls.push({ w: panelW, openings: northOpenings, pos: [ nearEdge, 0, -R/2], rot: 0 });
+
+        walls.forEach(cfg => {
+            const mesh = new THREE.Mesh(this.createWallPanel(cfg.w, H, cfg.openings), mat);
+            mesh.position.set(...cfg.pos);
+            mesh.rotation.y = cfg.rot;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.architectureGroup.add(mesh);
         });
-        
-        console.log('Walls with centered door opening created');
     }
     
     createBasicCeiling() {
@@ -496,7 +485,7 @@ export class PoolroomWorld {
             poolBottomMaterial
         );
         poolBottom.rotation.x = -Math.PI / 2;
-        poolBottom.position.y = -18;
+        poolBottom.position.y = -this.poolDepthValue;
         this.poolGroup.add(poolBottom);
         this.poolBottomMesh = poolBottom;
 
@@ -512,7 +501,7 @@ export class PoolroomWorld {
         } else {
             wallMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, side: THREE.DoubleSide }); // fallback
         }
-        const wallH = 18; // Slightly raised
+        const wallH = this.poolDepthValue;
         // North wall
         const northWall = new THREE.Mesh(
             new THREE.PlaneGeometry(this.poolWidth, wallH), wallMat.clone()
@@ -580,55 +569,6 @@ export class PoolroomWorld {
         });
         
         console.log('Pillars created');
-    }
-    
-    createWallOpenings() {
-        const openingWidth = 80;
-        const openingSpacing = 160;
-        const wallHeight = this.wallHeight;
-        const roomSize = this.roomSize;
-        
-        const frameMaterial = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, roughness: 0.7, metalness: 0.0 });
-        const skyMaterial = new THREE.MeshStandardMaterial({
-            color: 0x99ccff,
-            transparent: true,
-            opacity: 0.12,
-            roughness: 0.25, metalness: 0.0,
-            side: THREE.DoubleSide,
-            depthWrite: false
-        });
-        
-        const wallConfigs = [
-            // Skip north wall (has door)
-            // { wall: 'north', basePos: [0, 0, -roomSize/2 + 2], direction: 'x' }, // COMMENTED OUT
-            { wall: 'south', basePos: [0, 0, roomSize/2 - 2], direction: 'x' },
-            { wall: 'east', basePos: [roomSize/2 - 2, 0, 0], direction: 'z' },
-            { wall: 'west', basePos: [-roomSize/2 + 2, 0, 0], direction: 'z' }
-        ];
-        
-        wallConfigs.forEach(config => {
-            for (let i = -1; i <= 1; i++) {
-                const openingGroup = new THREE.Group();
-                
-                const frameGeometry = new THREE.PlaneGeometry(openingWidth + 4, wallHeight);
-                const frame = new THREE.Mesh(frameGeometry, frameMaterial);
-                
-                openingGroup.add(frame);
-                
-                if (config.direction === 'x') {
-                    openingGroup.position.set(i * openingSpacing, wallHeight/2, config.basePos[2]);
-                    if (config.wall === 'south') openingGroup.rotation.y = Math.PI;
-                } else {
-                    openingGroup.position.set(config.basePos[0], wallHeight/2, i * openingSpacing);
-                    if (config.wall === 'east') openingGroup.rotation.y = -Math.PI/2;
-                    if (config.wall === 'west') openingGroup.rotation.y = Math.PI/2;
-                }
-                
-                this.architectureGroup.add(openingGroup);
-            }
-        });
-        
-        console.log('Wall openings created');
     }
     
     createGameWorldBackground() {
@@ -1018,7 +958,8 @@ export class PoolroomWorld {
         this.scene.add(this.ambientLight);
 
         // Desaturated ground color so it stops tinting the white tile green
-        this.hemiLight = new THREE.HemisphereLight(0xbcd8ff, 0xf2f0ec, 0.7);
+        // 0.7 + env 0.9 blew out white tile around window openings
+        this.hemiLight = new THREE.HemisphereLight(0xbcd8ff, 0xf2f0ec, 0.4);
         this.scene.add(this.hemiLight);
 
         this.sunLight = new THREE.DirectionalLight(0xfff4e0, 2.2);
@@ -1050,6 +991,13 @@ export class PoolroomWorld {
         this.grottoLight = new THREE.PointLight(0x66e0ff, 25000, 600, 2);
         this.grottoLight.position.set(-this.templeSize/2 - 120, 20, templeZ);
         this.scene.add(this.grottoLight);
+
+        // Placeholder fill disabled — was blowing out walls/sky through openings.
+        // Phase 3 water transmission / caustics replaces this.
+        // const poolLight = new THREE.PointLight(0xaee6ff, 12000, 180, 2);
+        // poolLight.position.set(0, -40, 0);
+        // this.scene.add(poolLight);
+        // this.poolLight = poolLight;
     }
 
     enableShadows() {
@@ -1196,6 +1144,7 @@ export class PoolroomWorld {
             width: this.poolWidth,
             depth: this.poolDepth,
             depthValue: this.poolDepthValue,
+            floorY: -this.poolDepthValue,
             waterLevel: -0.5
         };
     }

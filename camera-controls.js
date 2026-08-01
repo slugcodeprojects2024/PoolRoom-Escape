@@ -34,7 +34,7 @@ export class CameraControls {
         // Collision boundaries
         this.roomBoundary = 460;
         this.poolBoundary = 240;
-        this.poolDepth = -18;
+        this.poolDepth = -90;
         this.floorLevel = 20;
         this.waterLevel = -1;
         this.grottoWaterLevel = -6;
@@ -273,9 +273,9 @@ export class CameraControls {
         const pos = this.camera.position;
         const margin = 2;
         if (Math.abs(pos.x) < this.poolBoundary + margin && Math.abs(pos.z) < this.poolBoundary + margin) {
-            if (pos.y < -18) {
+            if (pos.y < this.poolDepth) {
                 console.log('🔵 IMMEDIATE CLAMP: Forcing Y to pool bottom');
-                pos.y = -18;
+                pos.y = this.poolDepth;
                 this.velocity.y = 0;
             }
         }
@@ -381,8 +381,8 @@ export class CameraControls {
     
     handlePoolCollisions() {
         const pos = this.camera.position;
-        // Pool bottom collision (use y = -18 to match pool mesh)
-        const poolBottomY = -18;
+        // Pool bottom collision (match pool mesh via this.poolDepth)
+        const poolBottomY = this.poolDepth;
         if (pos.y <= poolBottomY) {
             console.log('🟢 handlePoolCollisions: setting Y to pool bottom');
             pos.y = poolBottomY;
