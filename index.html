@@ -102,33 +102,16 @@
         <div id="collectibles-counter">Collectibles: 0/10</div>
     </div>
 
-    <!-- Underwater overlay (hidden by default) -->
-    <div id="underwater-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(30,120,200,0.25); pointer-events: none; z-index: 9998; display: none;"></div>
-
     <!-- Load our modular components -->
     <script type="module" src="main.js"></script>
 
-    <!-- Play Music Button Overlay -->
-    <div id="play-music-overlay" style="position:fixed;top:0;left:0;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(0,0,0,0.7);">
-      <button id="play-music-btn" style="font-size:2rem;padding:1em 2em;border-radius:12px;border:none;background:#fff;color:#222;box-shadow:0 2px 12px #0008;cursor:pointer;">▶️ Play Music</button>
+    <div id="start-overlay" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(0,0,0,0.75);">
+      <button id="start-btn" style="font-size:1.6rem;padding:0.9em 2em;border-radius:12px;border:none;background:#fff;color:#222;cursor:pointer;">Enter the Poolrooms</button>
     </div>
     <script>
-      const playOverlay = document.getElementById('play-music-overlay');
-      const playBtn = document.getElementById('play-music-btn');
-      playBtn.addEventListener('click', () => {
-        // Create and add the hidden YouTube iframe
-        if (!document.getElementById('yt-music')) {
-          const yt = document.createElement('iframe');
-          yt.id = 'yt-music';
-          yt.width = 0;
-          yt.height = 0;
-          yt.style.display = 'none';
-          yt.src = 'https://www.youtube.com/embed/w0PkUdrSUTI?autoplay=1&loop=1&playlist=w0PkUdrSUTI';
-          yt.allow = 'autoplay; encrypted-media';
-          yt.frameBorder = '0';
-          document.body.appendChild(yt);
-        }
-        playOverlay.style.display = 'none';
+      document.getElementById('start-btn').addEventListener('click', () => {
+        document.getElementById('start-overlay').style.display = 'none';
+        document.getElementById('canvas-container').click();
       });
     </script>
 </body>

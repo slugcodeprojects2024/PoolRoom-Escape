@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "itch": "vite build"
+    "itch": "vite build && cd dist && zip -r ../poolroom-escape.zip . -x '.*' && cd .."
   },
   "keywords": [],
   "author": "",
