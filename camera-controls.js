@@ -1,439 +1,308 @@
-// camera-controls.js - Single Story Design
+// camera-controls.js — first-person movement and look
 import * as THREE from 'three';
 
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _wish = new THREE.Vector3();
+const _rayOrigin = new THREE.Vector3();
+const _down = new THREE.Vector3(0, -1, 0);
+const _raycaster = new THREE.Raycaster();
+
 export class CameraControls {
-    constructor(camera, domElement, poolBottomMesh, invisibleWalls = []) {
+    constructor(camera, domElement, poolBottomMesh, options = {}) {
         this.camera = camera;
         this.domElement = domElement;
         this.poolBottomMesh = poolBottomMesh;
-        this.invisibleWalls = invisibleWalls;
-        
-        // Movement state
-        this.moveForward = false;
-        this.moveBackward = false;
-        this.moveLeft = false;
-        this.moveRight = false;
-        this.canJump = false;
-        this.isSwimming = false;
-        
-        // Physics
+
+        // Yaw and pitch are tracked as plain numbers and written to the camera
+        // each frame. Mutating camera.rotation directly with the default XYZ
+        // Euler order introduces roll when yaw and pitch combine — the "swimmy"
+        // feel. YXZ applies yaw first, so the horizon stays level.
+        this.camera.rotation.order = 'YXZ';
+        this.yaw = 0;
+        this.pitch = 0;
+        this.mouseSensitivity = options.sensitivity || 0.0022;
+        this.invertY = false;
+        this.maxPitch = Math.PI / 2 - 0.01;   // just short of the pole
+
+        this.keys = { forward: false, back: false, left: false, right: false, sprint: false };
+
+        // Speeds are targets, not accelerations. Displacement is velocity * dt,
+        // integrated once. The old code applied speed as an acceleration and
+        // then multiplied by dt again, so movement scaled with dt² and terminal
+        // speed was set by the damping constant — that was the floatiness.
+        this.walkSpeed = options.walkSpeed || 160;
+        this.sprintMultiplier = options.sprintMultiplier || 1.9;
+        this.swimSpeed = options.swimSpeed || 175;
+
+        // How fast actual velocity converges on target. High on ground for
+        // crisp starts and stops; low in air so you keep momentum.
+        this.groundControl = 18;
+        this.airControl = 2.5;
+        this.waterControl = 5;
+
         this.velocity = new THREE.Vector3();
-        this.direction = new THREE.Vector3();
-        this.walkSpeed = 400.0;
-        this.swimSpeed = 200.0;
-        this.jumpVelocity = 350;
-        this.gravity = 9.8 * 100.0;
-        this.damping = 10.0;
-        
-        // Mouse sensitivity
-        this.mouseSensitivity = 0.002;
-        
-        // Pointer lock
+        this.jumpVelocity = options.jumpVelocity || 230;
+        this.gravity = options.gravity || 620;
+        this.swimGravity = 150;
+        this.buoyancy = 190;
+
+        this.onGround = false;
+        this.isSwimming = false;
         this.isPointerLocked = false;
-        
-        // Collision boundaries
-        this.roomBoundary = 460;
-        this.poolBoundary = 240;
-        this.poolDepth = -90;
-        this.floorLevel = 20;
-        this.waterLevel = -1;
+
+        // World geometry. Kept as data so Phase 5 can rebuild the level
+        // without touching movement code.
+        this.eyeHeight = options.eyeHeight || 20;
+        this.roomBoundary = options.roomBoundary || 460;
+        this.poolBoundary = options.poolBoundary || 240;
+        this.poolFloor = options.poolFloor !== undefined ? options.poolFloor : -90;
+        this.waterLevel = options.waterLevel !== undefined ? options.waterLevel : -1;
         this.grottoWaterLevel = -6;
-        
-        // Water physics
-        this.waterDamping = 15.0;
-        this.buoyancy = 200.0;
-        
-        // NEW: Area boundaries for single-story design - CENTERED
-        this.walkwayBounds = {
-            x: 0,        // CENTERED
-            startZ: -480,
-            endZ: -880,
-            width: 80
-        };
-        
-        this.templeBounds = {
-            x: 0,        // CENTERED
-            z: -1030,
-            size: 1360, // Expanded: 960 (temple) + 400 margin
-            grottoSize: 120
-        };
-        
-        // Add key listener for coordinate display
-        document.addEventListener('keydown', (event) => {
-            if (event.key.toLowerCase() === 'c') {
-                console.log('Camera position:', {
-                    x: this.camera.position.x.toFixed(2),
-                    y: this.camera.position.y.toFixed(2),
-                    z: this.camera.position.z.toFixed(2)
-                });
+        this.boundsEnabled = options.boundsEnabled !== false;
+
+        this.walkwayBounds = { x: 0, startZ: -480, endZ: -880, width: 80 };
+        this.templeBounds = { x: 0, z: -1030, size: 1360, grottoSize: 120 };
+
+        this._onMouseMove = this._onMouseMove.bind(this);
+        this._onKeyDown = this._onKeyDown.bind(this);
+        this._onKeyUp = this._onKeyUp.bind(this);
+    }
+
+    init() {
+        this.yaw = this.camera.rotation.y;
+        this.pitch = this.camera.rotation.x;
+
+        this.domElement.addEventListener('click', () => {
+            if (!this.isPointerLocked) {
+                const p = this.domElement.requestPointerLock();
+                // Chrome returns a promise here; a rejection is normal if the
+                // user exits and re-clicks too quickly, and must not throw.
+                if (p && p.catch) p.catch(() => {});
             }
         });
-    }
-    
-    init() {
-        this.setupPointerLock();
-        this.setupKeyboardControls();
-        console.log('🎮 Camera controls initialized for single-story design');
-    }
-    
-    setupPointerLock() {
-        // Click to request pointer lock
-        this.domElement.addEventListener('click', () => {
-            this.domElement.requestPointerLock();
-        });
-        
-        // Handle pointer lock changes
+
         document.addEventListener('pointerlockchange', () => {
             this.isPointerLocked = document.pointerLockElement === this.domElement;
-        });
-        
-        // Handle mouse movement
-        document.addEventListener('mousemove', (event) => {
-            if (!this.isPointerLocked) return;
-            
-            const movementX = event.movementX || 0;
-            const movementY = event.movementY || 0;
-            
-            // Update camera rotation
-            this.camera.rotation.y -= movementX * this.mouseSensitivity;
-            this.camera.rotation.x += movementY * this.mouseSensitivity;
-            
-            // Limit vertical rotation
-            this.camera.rotation.x = Math.max(
-                -Math.PI / 2, 
-                Math.min(Math.PI / 2, this.camera.rotation.x)
-            );
-        });
-    }
-    
-    setupKeyboardControls() {
-        // Keydown events
-        document.addEventListener('keydown', (event) => {
-            switch(event.code) {
-                case 'KeyW':
-                    this.moveForward = true;
-                    break;
-                case 'KeyS':
-                    this.moveBackward = true;
-                    break;
-                case 'KeyA':
-                    this.moveLeft = true;
-                    break;
-                case 'KeyD':
-                    this.moveRight = true;
-                    break;
-                case 'KeyQ':
-                    // Rotate camera left
-                    this.camera.rotation.y += 0.1;
-                    break;
-                case 'KeyE':
-                    // Rotate camera right
-                    this.camera.rotation.y -= 0.1;
-                    break;
-                case 'Space':
-                    event.preventDefault();
-                    this.handleJump();
-                    break;
-                case 'ShiftLeft':
-                    this.walkSpeed = 800.0;
-                    this.swimSpeed = 400.0;
-                    break;
+            if (!this.isPointerLocked) {
+                // Drop held keys, or the player keeps walking after focus loss
+                for (const k in this.keys) this.keys[k] = false;
             }
         });
-        
-        // Keyup events
-        document.addEventListener('keyup', (event) => {
-            switch(event.code) {
-                case 'KeyW':
-                    this.moveForward = false;
-                    break;
-                case 'KeyS':
-                    this.moveBackward = false;
-                    break;
-                case 'KeyA':
-                    this.moveLeft = false;
-                    break;
-                case 'KeyD':
-                    this.moveRight = false;
-                    break;
-                case 'ShiftLeft':
-                    this.walkSpeed = 400.0;
-                    this.swimSpeed = 200.0;
-                    break;
-            }
-        });
+
+        document.addEventListener('mousemove', this._onMouseMove);
+        document.addEventListener('keydown', this._onKeyDown);
+        document.addEventListener('keyup', this._onKeyUp);
     }
-    
-    handleJump() {
-        if (this.isSwimming) {
-            this.velocity.y += this.jumpVelocity * 0.7;
-        } else if (this.canJump) {
-            this.velocity.y += this.jumpVelocity;
-            this.canJump = false;
+
+    dispose() {
+        document.removeEventListener('mousemove', this._onMouseMove);
+        document.removeEventListener('keydown', this._onKeyDown);
+        document.removeEventListener('keyup', this._onKeyUp);
+    }
+
+    _onMouseMove(event) {
+        if (!this.isPointerLocked) return;
+        const mx = event.movementX || 0;
+        const my = event.movementY || 0;
+
+        this.yaw -= mx * this.mouseSensitivity;
+        // Moving the mouse down gives positive movementY and must pitch the
+        // view down, which is negative rotation.x. The original used += here.
+        this.pitch -= (this.invertY ? -my : my) * this.mouseSensitivity;
+        this.pitch = Math.max(-this.maxPitch, Math.min(this.maxPitch, this.pitch));
+    }
+
+    _onKeyDown(event) {
+        if (event.repeat) return;
+        switch (event.code) {
+            case 'KeyW': case 'ArrowUp':    this.keys.forward = true; break;
+            case 'KeyS': case 'ArrowDown':  this.keys.back = true; break;
+            case 'KeyA': case 'ArrowLeft':  this.keys.left = true; break;
+            case 'KeyD': case 'ArrowRight': this.keys.right = true; break;
+            case 'ShiftLeft': case 'ShiftRight': this.keys.sprint = true; break;
+            case 'Space':
+                event.preventDefault();
+                this.jump();
+                break;
+            case 'KeyC':
+                console.log('Camera:', this.camera.position.toArray().map(n => n.toFixed(1)).join(', '));
+                break;
         }
     }
-    
+
+    _onKeyUp(event) {
+        switch (event.code) {
+            case 'KeyW': case 'ArrowUp':    this.keys.forward = false; break;
+            case 'KeyS': case 'ArrowDown':  this.keys.back = false; break;
+            case 'KeyA': case 'ArrowLeft':  this.keys.left = false; break;
+            case 'KeyD': case 'ArrowRight': this.keys.right = false; break;
+            case 'ShiftLeft': case 'ShiftRight': this.keys.sprint = false; break;
+        }
+    }
+
+    jump() {
+        if (this.isSwimming) {
+            this.velocity.y = this.jumpVelocity * 0.55;
+        } else if (this.onGround) {
+            this.velocity.y = this.jumpVelocity;
+            this.onGround = false;
+        }
+    }
+
     update(deltaTime) {
-        this.updateMovement(deltaTime);
-        this.handleCollisions();
+        // Clamp dt so a tab-switch stall can't teleport the player through walls
+        const dt = Math.min(deltaTime, 0.05);
+
+        this.camera.rotation.set(this.pitch, this.yaw, 0);
+
         this.updateSwimmingState();
-        // Raycast to pool bottom mesh for collision
-        if (this.poolBottomMesh) {
-            const raycaster = new THREE.Raycaster();
-            const origin = this.camera.position.clone();
-            origin.y += 1; // Start ray just above camera
-            raycaster.set(origin, new THREE.Vector3(0, -1, 0));
-            const intersects = raycaster.intersectObject(this.poolBottomMesh);
-            if (intersects.length > 0) {
-                const hitY = intersects[0].point.y;
-                const offset = 2; // Stand slightly above mesh
-                if (this.camera.position.y < hitY + offset) {
-                    this.camera.position.y = hitY + offset;
-                    this.velocity.y = 0;
-                }
-            }
-        }
-        // --- NEW: Mesh-based collision with invisible walls ---
-        if (this.invisibleWalls && this.invisibleWalls.length > 0) {
-            const cameraBB = new THREE.Box3().setFromCenterAndSize(
-                this.camera.position,
-                new THREE.Vector3(6, 16, 6) // Camera collision box size (tweak as needed)
-            );
-            for (const wall of this.invisibleWalls) {
-                wall.updateMatrixWorld();
-                const wallBB = new THREE.Box3().setFromObject(wall);
-                if (cameraBB.intersectsBox(wallBB)) {
-                    // Simple response: push camera back along the smallest axis
-                    const cam = this.camera.position;
-                    const min = wallBB.min;
-                    const max = wallBB.max;
-                    // Find closest face and push out
-                    if (cam.x < min.x) cam.x = min.x - 3;
-                    if (cam.x > max.x) cam.x = max.x + 3;
-                    if (cam.z < min.z) cam.z = min.z - 3;
-                    if (cam.z > max.z) cam.z = max.z + 3;
-                    if (cam.y < min.y) cam.y = min.y - 3;
-                    if (cam.y > max.y) cam.y = max.y + 3;
-                    this.velocity.set(0, 0, 0);
-                }
-            }
-        }
+        this.updateMovement(dt);
+        this.handleCollisions();
     }
-    
-    updateMovement(deltaTime) {
-        const currentSpeed = this.isSwimming ? this.swimSpeed : this.walkSpeed;
-        const currentDamping = this.isSwimming ? this.waterDamping : this.damping;
-        
-        // Apply damping
-        this.velocity.x -= this.velocity.x * currentDamping * deltaTime;
-        this.velocity.z -= this.velocity.z * currentDamping * deltaTime;
-        
-        // Apply gravity or buoyancy
-        if (this.isSwimming) {
+
+    updateMovement(dt) {
+        const swimming = this.isSwimming;
+
+        // Basis vectors from yaw only, so looking up doesn't slow you down
+        _forward.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+        _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+
+        const fwdInput = (this.keys.forward ? 1 : 0) - (this.keys.back ? 1 : 0);
+        const strafeInput = (this.keys.right ? 1 : 0) - (this.keys.left ? 1 : 0);
+
+        _wish.set(0, 0, 0);
+        _wish.addScaledVector(_forward, fwdInput);
+        _wish.addScaledVector(_right, strafeInput);
+        if (_wish.lengthSq() > 0) _wish.normalize();   // no diagonal speed bonus
+
+        let speed = swimming ? this.swimSpeed : this.walkSpeed;
+        if (this.keys.sprint) speed *= this.sprintMultiplier;
+
+        const control = swimming ? this.waterControl
+                      : this.onGround ? this.groundControl
+                      : this.airControl;
+        const t = 1 - Math.exp(-control * dt);   // frame-rate independent
+
+        this.velocity.x += (_wish.x * speed - this.velocity.x) * t;
+        this.velocity.z += (_wish.z * speed - this.velocity.z) * t;
+
+        if (swimming) {
+            this.velocity.y -= this.swimGravity * dt;
             if (this.camera.position.y < this.waterLevel) {
-                this.velocity.y += this.buoyancy * deltaTime;
+                this.velocity.y += this.buoyancy * dt;
             }
-            this.velocity.y -= (this.gravity * 0.3) * deltaTime;
+            this.velocity.y *= (1 - Math.min(1, 2.2 * dt));   // water drag
         } else {
-            this.velocity.y -= this.gravity * deltaTime;
+            this.velocity.y -= this.gravity * dt;
         }
-        
-        // Calculate movement direction
-        this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
-        this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
-        this.direction.normalize();
-        
-        // Apply movement
-        if (this.moveForward || this.moveBackward) {
-            this.velocity.z -= this.direction.z * currentSpeed * deltaTime;
-        }
-        if (this.moveLeft || this.moveRight) {
-            this.velocity.x -= this.direction.x * currentSpeed * deltaTime;
-        }
-        
-        // Convert to world coordinates
-        const forward = new THREE.Vector3(0, 0, 1);
-        forward.applyQuaternion(this.camera.quaternion);
-        forward.y = 0;
-        forward.normalize();
-        
-        const right = new THREE.Vector3(-1, 0, 0);
-        right.applyQuaternion(this.camera.quaternion);
-        right.y = 0;
-        right.normalize();
-        
-        // Apply movement to camera
-        const movement = new THREE.Vector3();
-        movement.addScaledVector(forward, this.velocity.z * deltaTime);
-        movement.addScaledVector(right, this.velocity.x * deltaTime);
-        
-        this.camera.position.add(movement);
-        this.camera.position.y += this.velocity.y * deltaTime;
-        // HARD CLAMP for pool bottom immediately after Y update
-        const pos = this.camera.position;
-        const margin = 2;
-        if (Math.abs(pos.x) < this.poolBoundary + margin && Math.abs(pos.z) < this.poolBoundary + margin) {
-            if (pos.y < this.poolDepth) {
-                console.log('🔵 IMMEDIATE CLAMP: Forcing Y to pool bottom');
-                pos.y = this.poolDepth;
-                this.velocity.y = 0;
-            }
-        }
+
+        this.camera.position.addScaledVector(this.velocity, dt);
     }
-    
+
     handleCollisions() {
         const pos = this.camera.position;
-        // Determine which area we're in and handle appropriate collisions
-        if (this.isInTempleArea(pos.x, pos.z)) {
-            this.handleTempleCollisions();
-        } else if (this.isOnWalkway(pos.x, pos.z)) {
-            this.handleWalkwayCollisions();
-        } else if (this.isInMainRoom(pos.x, pos.z)) {
-            this.handleMainRoomCollisions();
-        } else {
-            // Remove fallback boundary: allow free movement
-            // Default floor collision
-            if (pos.y < this.floorLevel) {
-                pos.y = this.floorLevel;
-                this.velocity.y = 0;
-                this.canJump = true;
+        this.onGround = false;
+
+        if (this.boundsEnabled) {
+            if (this.isInTempleArea(pos.x, pos.z)) {
+                // temple floor, no lateral clamp
+            } else if (this.isOnWalkway(pos.x, pos.z)) {
+                const half = this.walkwayBounds.width / 2;
+                pos.x = Math.max(this.walkwayBounds.x - half, Math.min(this.walkwayBounds.x + half, pos.x));
+            } else if (this.isInMainRoom(pos.x, pos.z)) {
+                pos.x = Math.max(-this.roomBoundary, Math.min(this.roomBoundary, pos.x));
+                pos.z = Math.max(-this.roomBoundary, Math.min(this.roomBoundary, pos.z));
             }
         }
+
+        const groundY = this.groundHeightAt(pos);
+        if (pos.y < groundY) {
+            pos.y = groundY;
+            if (this.velocity.y < 0) this.velocity.y = 0;
+            // Only grounded on real ground — not while submerged, or you get
+            // an infinite jump off the pool floor.
+            this.onGround = !this.isSwimming;
+        }
     }
-    
-    isInMainRoom(x, z) {
-        return Math.abs(x) < this.roomBoundary && z > -this.roomBoundary && z < this.roomBoundary;
-    }
-    
-    isOnWalkway(x, z) {
-        return Math.abs(x - this.walkwayBounds.x) < this.walkwayBounds.width/2 &&
-               z >= this.walkwayBounds.endZ && z <= this.walkwayBounds.startZ;
-    }
-    
-    isInTempleArea(x, z) {
-        return Math.abs(x - this.templeBounds.x) < this.templeBounds.size/2 &&
-               Math.abs(z - this.templeBounds.z) < this.templeBounds.size/2;
-    }
-    
-    handleMainRoomCollisions() {
-        const pos = this.camera.position;
-        // Room boundary collision
-        if (pos.x > this.roomBoundary) pos.x = this.roomBoundary;
-        if (pos.x < -this.roomBoundary) pos.x = -this.roomBoundary;
-        if (pos.z > this.roomBoundary) pos.z = this.roomBoundary;
-        if (pos.z < -this.roomBoundary) pos.z = -this.roomBoundary;
-        // Check if in main pool area (add margin)
-        const margin = 2;
-        const inPoolArea = Math.abs(pos.x) < this.poolBoundary + margin && Math.abs(pos.z) < this.poolBoundary + margin;
-        if (inPoolArea) {
-            this.handlePoolCollisions();
-        } else {
-            // Regular floor collision
-            if (pos.y < this.floorLevel) {
-                pos.y = this.floorLevel;
-                this.velocity.y = 0;
-                this.canJump = true;
+
+    // Single source of truth for "what is the floor here". Phase 5's elevator
+    // and multi-level layout should extend this rather than adding more clamps.
+    groundHeightAt(pos) {
+        const inPool = Math.abs(pos.x) < this.poolBoundary + 2 &&
+                       Math.abs(pos.z) < this.poolBoundary + 2;
+
+        if (inPool) {
+            if (this.poolBottomMesh) {
+                _rayOrigin.set(pos.x, pos.y + 4, pos.z);
+                _raycaster.set(_rayOrigin, _down);
+                _raycaster.far = 200;
+                const hits = _raycaster.intersectObject(this.poolBottomMesh, false);
+                if (hits.length > 0) return hits[0].point.y + 2;
             }
+            return this.poolFloor + 2;
         }
-    }
-    
-    handleWalkwayCollisions() {
-        const pos = this.camera.position;
-        
-        // Keep within walkway bounds
-        const halfWidth = this.walkwayBounds.width / 2;
-        if (pos.x > this.walkwayBounds.x + halfWidth) pos.x = this.walkwayBounds.x + halfWidth;
-        if (pos.x < this.walkwayBounds.x - halfWidth) pos.x = this.walkwayBounds.x - halfWidth;
-        
-        // Floor collision
-        if (pos.y < this.floorLevel) {
-            pos.y = this.floorLevel;
-            this.velocity.y = 0;
-            this.canJump = true;
+
+        const dx = pos.x - this.templeBounds.x;
+        const dz = pos.z - this.templeBounds.z;
+        if (Math.sqrt(dx * dx + dz * dz) < this.templeBounds.grottoSize / 2) {
+            return this.grottoWaterLevel;
         }
+
+        return this.eyeHeight;
     }
-    
-    handleTempleCollisions() {
-        const pos = this.camera.position;
-        
-        // Check if in grotto pool
-        const grottoDistance = Math.sqrt(
-            Math.pow(pos.x - this.templeBounds.x, 2) + 
-            Math.pow(pos.z - this.templeBounds.z, 2)
-        );
-        
-        if (grottoDistance < this.templeBounds.grottoSize / 2) {
-            // In grotto pool
-            if (pos.y < this.grottoWaterLevel) {
-                pos.y = this.grottoWaterLevel;
-                this.velocity.y = 0;
-                this.canJump = true;
-            }
-        } else {
-            // On temple floor
-            if (pos.y < this.floorLevel) {
-                pos.y = this.floorLevel;
-                this.velocity.y = 0;
-                this.canJump = true;
-            }
-        }
-    }
-    
-    handlePoolCollisions() {
-        const pos = this.camera.position;
-        // Pool bottom collision (match pool mesh via this.poolDepth)
-        const poolBottomY = this.poolDepth;
-        if (pos.y <= poolBottomY) {
-            console.log('🟢 handlePoolCollisions: setting Y to pool bottom');
-            pos.y = poolBottomY;
-            this.velocity.y = 0;
-            this.canJump = true;
-        }
-    }
-    
+
     updateSwimmingState() {
         const pos = this.camera.position;
-        
-        // Check main pool
-        const inMainPool = Math.abs(pos.x) < this.poolBoundary && 
-                          Math.abs(pos.z) < this.poolBoundary && 
-                          pos.y < this.waterLevel;
-        
-        // Check grotto pool
-        const grottoDistance = Math.sqrt(
-            Math.pow(pos.x - this.templeBounds.x, 2) + 
-            Math.pow(pos.z - this.templeBounds.z, 2)
-        );
-        const inGrottoPool = grottoDistance < this.templeBounds.grottoSize / 2 && 
-                            pos.y < this.grottoWaterLevel;
-        
-        this.isSwimming = inMainPool || inGrottoPool;
+        const inMainPool = Math.abs(pos.x) < this.poolBoundary &&
+                           Math.abs(pos.z) < this.poolBoundary &&
+                           pos.y < this.waterLevel;
+
+        const dx = pos.x - this.templeBounds.x;
+        const dz = pos.z - this.templeBounds.z;
+        const inGrotto = Math.sqrt(dx * dx + dz * dz) < this.templeBounds.grottoSize / 2 &&
+                         pos.y < this.grottoWaterLevel;
+
+        this.isSwimming = inMainPool || inGrotto;
     }
-    
-    // Public methods
-    getPosition() {
-        return this.camera.position.clone();
+
+    isInMainRoom(x, z) {
+        return Math.abs(x) < this.roomBoundary && Math.abs(z) < this.roomBoundary;
     }
-    
-    isInWater() {
-        return this.isSwimming;
+
+    isOnWalkway(x, z) {
+        return Math.abs(x - this.walkwayBounds.x) < this.walkwayBounds.width / 2 &&
+               z >= this.walkwayBounds.endZ && z <= this.walkwayBounds.startZ;
     }
-    
+
+    isInTempleArea(x, z) {
+        return Math.abs(x - this.templeBounds.x) < this.templeBounds.size / 2 &&
+               Math.abs(z - this.templeBounds.z) < this.templeBounds.size / 2;
+    }
+
+    getPosition() { return this.camera.position.clone(); }
+    isInWater() { return this.isSwimming; }
+
     getCurrentArea() {
-        const pos = this.camera.position;
-        if (this.isInTempleArea(pos.x, pos.z)) return 'temple';
-        if (this.isOnWalkway(pos.x, pos.z)) return 'walkway';
-        if (this.isInMainRoom(pos.x, pos.z)) return 'poolroom';
+        const p = this.camera.position;
+        if (this.isInTempleArea(p.x, p.z)) return 'temple';
+        if (this.isOnWalkway(p.x, p.z)) return 'walkway';
+        if (this.isInMainRoom(p.x, p.z)) return 'poolroom';
         return 'outside';
     }
-    
+
     setPosition(x, y, z) {
         this.camera.position.set(x, y, z);
         this.velocity.set(0, 0, 0);
     }
-    
+
+    lookAt(yaw, pitch = 0) {
+        this.yaw = yaw;
+        this.pitch = Math.max(-this.maxPitch, Math.min(this.maxPitch, pitch));
+    }
+
     reset() {
-        this.setPosition(50, 2, 50);
-        this.camera.rotation.set(0, 0, 0);
+        this.setPosition(0, this.eyeHeight, 300);
+        this.lookAt(0, 0);
     }
 }

@@ -148,29 +148,15 @@ createArtGalleryWingRefactored(templeZ) {
     // Gallery floor
     const galleryFloor = new THREE.Mesh(
         new THREE.PlaneGeometry(this.artGallerySize, this.artGallerySize),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25, metalness: 0.0, reflectivity: 0.5 })
+        // Low roughness + the scene environment map gives a polished-gallery
+        // reflection for free. `reflectivity` is a MeshPhysicalMaterial
+        // property and was being silently ignored here.
+        new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.12, metalness: 0.0 })
     );
     galleryFloor.rotation.x = -Math.PI / 2;
     galleryFloor.position.set(galleryX, 0, galleryZ);
     galleryFloor.receiveShadow = true;
     this.templeGroup.add(galleryFloor);
-
-    // Add a reflective ground plane (if Reflector is available)
-    if (typeof THREE.Reflector !== 'undefined') {
-        const reflector = new THREE.Reflector(
-            new THREE.PlaneGeometry(this.artGallerySize, this.artGallerySize),
-            {
-                color: 0x888888,
-                textureWidth: 1024,
-                textureHeight: 1024,
-                clipBias: 0.003,
-                recursion: 1
-            }
-        );
-        reflector.rotation.x = -Math.PI / 2;
-        reflector.position.set(galleryX, 0.01, galleryZ);
-        this.templeGroup.add(reflector);
-    }
 
     // Add geometric shapes in a row, spaced apart
     const y = 40; // Height for all shapes
