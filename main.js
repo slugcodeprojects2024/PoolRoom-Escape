@@ -6,6 +6,7 @@ import { PoolroomWorld } from './poolroom-world.js';
 import { WaterSystem } from './water-system.js';
 import { CollectiblesManager } from './collectibles-manager.js';
 import { GoldfishSystem } from './goldfish-system.js';
+import { AudioManager } from './audio-manager.js';
 
 class PoolroomsApp {
     constructor() {
@@ -21,6 +22,7 @@ class PoolroomsApp {
         this.waterSystem = null;
         this.collectiblesManager = null;
         this.goldfishSystem = null;
+        this.audio = null;
         
         // State
         this.isInitialized = false;
@@ -32,6 +34,8 @@ class PoolroomsApp {
         try {
             // Initialize Three.js core
             this.initThreeJS();
+
+            this.audio = new AudioManager();
             
             // Create world
             this.poolroomWorld = new PoolroomWorld(this.scene);
@@ -132,6 +136,16 @@ class PoolroomsApp {
         // Update systems
         if (this.cameraControls) {
             this.cameraControls.update(deltaTime);
+        }
+
+        if (this.audio && this.cameraControls) {
+            this.audio.updateListener(this.camera);
+            this.audio.updateFootsteps(
+                this.camera.position,
+                this.cameraControls.velocity.lengthSq() > 100,
+                this.cameraControls.onGround,
+                this.cameraControls.isSwimming
+            );
         }
         
         if (this.waterSystem) {

@@ -109,9 +109,15 @@
       <button id="start-btn" style="font-size:1.6rem;padding:0.9em 2em;border-radius:12px;border:none;background:#fff;color:#222;cursor:pointer;">Enter the Poolrooms</button>
     </div>
     <script>
-      document.getElementById('start-btn').addEventListener('click', () => {
+      document.getElementById('start-btn').addEventListener('click', async () => {
         document.getElementById('start-overlay').style.display = 'none';
         document.getElementById('canvas-container').click();
+        // AudioContext must be created/resumed inside this user gesture
+        if (poolroomsApp.audio) {
+          await poolroomsApp.audio.init(poolroomsApp.getScene());
+          poolroomsApp.audio.startMusic();
+          poolroomsApp.audio.startAllAmbience();
+        }
       });
     </script>
 </body>
