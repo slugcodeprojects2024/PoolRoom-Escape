@@ -337,8 +337,26 @@ export class BlockoutTools {
         this.deselect();
     }
 
-    async saveToDisk(level) {
+    // Only persist what differs from the defaults, so level-config.js stays
+    // the readable source of truth and the overrides file stays a short diff.
+    static diff(base, current) {
+        const out = {};
+        for (const k of Object.keys(current)) {
+            const a = base ? base[k] : undefined;
+            const b = current[k];
+            if (b && typeof b === 'object' && !Array.isArray(b)) {
+                const sub = BlockoutTools.diff(a || {}, b);
+                if (Object.keys(sub).length) out[k] = sub;
+            } else if (JSON.stringify(a) !== JSON.stringify(b)) {
+                out[k] = b;
+            }
+        }
+        return out;
+    }
+
+    async saveToDisk(level, base) {
         try {
+            if (base) level = BlockoutTools.diff(base, level);
             const res = await fetch('/__save-layout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

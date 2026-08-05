@@ -44,7 +44,7 @@
         "radius": 4,
         "doorArc": 1.7278759594743864,
         "doorHeight": 5,
-        "facing": -1.5707963267948966,
+        "facing": 3.141593,
         "shaftDepth": 40
     },
     "walkway": {

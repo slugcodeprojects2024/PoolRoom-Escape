@@ -533,8 +533,15 @@ export class Blockout {
     buildConnectors() {
         const C = LEVEL.connectors;
         for (const [a, b] of C.pairs) {
-            const pa = a === 'center' ? [0, 0, 0] : wingCenter(a);
-            const pb = b === 'center' ? [0, 0, 0] : wingCenter(b);
+            // 'center' means the poolroom doorway on the facing wall, not
+            // the middle of the pool — a covered walk should meet the building.
+            const doorOf = (other) => {
+                const w = LEVEL.wings[other];
+                const half = LEVEL.poolroom.width / 2;
+                return [w.dir[0] * half, 0, w.dir[1] * half];
+            };
+            const pa = a === 'center' ? doorOf(b) : wingCenter(a);
+            const pb = b === 'center' ? doorOf(a) : wingCenter(b);
             // Two axis-aligned legs via a corner, so nothing cuts diagonally
             // across the plaza grid.
             const corner = [pb[0], 0, pa[2]];

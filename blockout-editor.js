@@ -4,7 +4,7 @@
 // can be judged from inside the space instead of guessed at in a config file.
 // Export writes a ready-to-paste level-config.js to the clipboard.
 import GUI from 'three/addons/libs/lil-gui.module.min.js';
-import { LEVEL } from './level-config.js';
+import { LEVEL, LEVEL_DEFAULTS } from './level-config.js';
 
 export class BlockoutEditor {
     constructor(app) {
@@ -105,7 +105,7 @@ export class BlockoutEditor {
                 const [x, , z] = this.app.wingCenter(names[this._wi]);
                 this.app.controls.setPosition(x, LEVEL.player.eyeHeight + 2, z);
             },
-            save: () => this.app.tools.saveToDisk(LEVEL),
+            save: () => this.app.tools.saveToDisk(LEVEL, LEVEL_DEFAULTS),
             copyConfig: () => this.copyConfig(),
             copyAuthored: () => this.app.tools.copyAuthored(),
             listNotes: () => console.log(this.app.tools.notesSummary()),

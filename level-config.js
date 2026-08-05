@@ -158,6 +158,7 @@ function deepMerge(base, patch) {
 }
 
 export const LEVEL = deepMerge(BASE, OVERRIDES);
+export const LEVEL_DEFAULTS = BASE;
 
 // Wing world position, derived so nothing is duplicated
 export function wingCenter(name) {
