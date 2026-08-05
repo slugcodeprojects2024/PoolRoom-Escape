@@ -31,9 +31,9 @@ export class CameraControls {
         // integrated once. The old code applied speed as an acceleration and
         // then multiplied by dt again, so movement scaled with dt² and terminal
         // speed was set by the damping constant — that was the floatiness.
-        this.walkSpeed = options.walkSpeed || 160;
+        this.walkSpeed = options.walkSpeed || 260;
         this.sprintMultiplier = options.sprintMultiplier || 1.9;
-        this.swimSpeed = options.swimSpeed || 175;
+        this.swimSpeed = options.swimSpeed || 150;
 
         // How fast actual velocity converges on target. High on ground for
         // crisp starts and stops; low in air so you keep momentum.
@@ -60,6 +60,11 @@ export class CameraControls {
         this.waterLevel = options.waterLevel !== undefined ? options.waterLevel : -1;
         this.grottoWaterLevel = -6;
         this.boundsEnabled = options.boundsEnabled !== false;
+
+        // Optional external ground query. When supplied it replaces the
+        // built-in pool/temple height logic entirely — this is the hook the
+        // blockout uses and the one the elevator will extend.
+        this.groundQuery = options.groundQuery || null;
 
         this.walkwayBounds = { x: 0, startZ: -480, endZ: -880, width: 80 };
         this.templeBounds = { x: 0, z: -1030, size: 1360, grottoSize: 120 };
@@ -229,6 +234,7 @@ export class CameraControls {
     // Single source of truth for "what is the floor here". Phase 5's elevator
     // and multi-level layout should extend this rather than adding more clamps.
     groundHeightAt(pos) {
+        if (this.groundQuery) return this.groundQuery(pos);
         const inPool = Math.abs(pos.x) < this.poolBoundary + 2 &&
                        Math.abs(pos.z) < this.poolBoundary + 2;
 

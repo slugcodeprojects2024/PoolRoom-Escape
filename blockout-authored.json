@@ -1,0 +1,21 @@
+{
+    "props": [],
+    "notes": [
+        {
+            "text": "walkway should end at this spot.",
+            "position": [
+                39.86,
+                1.09,
+                4.5
+            ]
+        },
+        {
+            "text": "rotate elevator door to face temple",
+            "position": [
+                -0.25,
+                0.25,
+                5.26
+            ]
+        }
+    ]
+}

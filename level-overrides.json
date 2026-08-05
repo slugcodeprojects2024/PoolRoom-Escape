@@ -1,0 +1,179 @@
+{
+    "poolroom": {
+        "width": 80,
+        "depth": 80,
+        "ceiling": 28,
+        "wallThickness": 1.2,
+        "oculus": {
+            "width": 26,
+            "depth": 26
+        },
+        "windows": {
+            "width": 7,
+            "height": 9,
+            "sill": 3,
+            "countPerWall": 5
+        },
+        "entrance": {
+            "width": 9,
+            "height": 12
+        },
+        "entranceSides": [
+            "-z",
+            "+z",
+            "-x",
+            "+x"
+        ]
+    },
+    "pool": {
+        "width": 56,
+        "depth": 56,
+        "depthBelow": 6,
+        "passageDepth": 60,
+        "passageWidth": 7,
+        "waterLevel": -0.15,
+        "edgeWidth": 1
+    },
+    "pillars": {
+        "radius": 2.1,
+        "spacing": 18,
+        "offsetX": 24,
+        "overshoot": 10
+    },
+    "elevator": {
+        "radius": 4,
+        "doorArc": 1.7278759594743864,
+        "doorHeight": 5,
+        "facing": -1.5707963267948966,
+        "shaftDepth": 40
+    },
+    "walkway": {
+        "width": 6,
+        "from": [
+            0,
+            0
+        ],
+        "toZ": -22
+    },
+    "wings": {
+        "temple": {
+            "dir": [
+                0,
+                -1
+            ],
+            "gap": 45,
+            "width": 72,
+            "depth": 60,
+            "height": 20,
+            "enclosure": "open",
+            "label": "Temple"
+        },
+        "museum": {
+            "dir": [
+                -1,
+                0
+            ],
+            "gap": 70,
+            "width": 66,
+            "depth": 56,
+            "height": 15,
+            "enclosure": "indoor",
+            "label": "Museum"
+        },
+        "grotto": {
+            "dir": [
+                1,
+                0
+            ],
+            "gap": 95,
+            "width": 52,
+            "depth": 46,
+            "height": 7,
+            "enclosure": "grotto",
+            "label": "Grotto"
+        },
+        "nature": {
+            "dir": [
+                0,
+                1
+            ],
+            "gap": 120,
+            "width": 76,
+            "depth": 62,
+            "height": 0,
+            "enclosure": "nature",
+            "label": "Nature"
+        }
+    },
+    "plaza": {
+        "radius": 200,
+        "y": 0
+    },
+    "tower": {
+        "width": 80,
+        "depth": 80,
+        "height": 340
+    },
+    "connectors": {
+        "width": 9,
+        "height": 6,
+        "pairs": [
+            [
+                "grotto",
+                "center"
+            ],
+            [
+                "grotto",
+                "nature"
+            ]
+        ]
+    },
+    "grotto": {
+        "basinRadius": 15,
+        "basinDepth": 2.4,
+        "caveWidth": 18,
+        "caveDepth": 13,
+        "caveHeight": 4.2,
+        "waterfallWidth": 7,
+        "waterfallDrop": 3.4,
+        "spaRadius": 5,
+        "spaLift": 1.5,
+        "barLength": 9,
+        "stoolCount": 4,
+        "rockCount": 16
+    },
+    "field": {
+        "radius": 9000,
+        "terrainSegments": 180,
+        "hillAmplitude": 90,
+        "hillScale": 900,
+        "flatRadius": 260,
+        "towerCount": 34,
+        "towerRingInner": 1600,
+        "towerRingOuter": 7000,
+        "towerMinHeight": 260,
+        "towerMaxHeight": 620,
+        "towerMinWidth": 70,
+        "towerMaxWidth": 150
+    },
+    "player": {
+        "eyeHeight": 1.7,
+        "walkSpeed": 5.5,
+        "sprintMultiplier": 1.7,
+        "swimSpeed": 2.2,
+        "jumpVelocity": 4.6,
+        "gravity": 9.8,
+        "spawn": [
+            0,
+            1.7,
+            30
+        ]
+    },
+    "eye": {
+        "diameter": 300,
+        "renderDistance": 3000,
+        "startScale": 0.0093,
+        "endScale": 1,
+        "approachSeconds": 90
+    }
+}
