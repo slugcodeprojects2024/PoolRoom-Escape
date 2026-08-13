@@ -93,6 +93,10 @@ export class BlockoutEditor {
         move.add(LEVEL.player, 'jumpVelocity', 1, 20, 0.1).onChange(v => this.app.controls.jumpVelocity = v);
         move.close();
 
+        this.notesFolder = g.addFolder('notes');
+        this.app.tools.onNotesChanged = () => this.refreshNotes();
+        this.refreshNotes();
+
         const actions = {
             teleportRoof: () => {
                 const y = LEVEL.poolroom.ceiling + LEVEL.tower.height + LEVEL.player.eyeHeight + 1;
@@ -120,6 +124,35 @@ export class BlockoutEditor {
         g.add(actions, 'copyAuthored').name('copy props + notes →');
         g.add(actions, 'listNotes').name('list notes (console)');
         g.add(actions, 'rebuild').name('force rebuild');
+    }
+
+    refreshNotes() {
+        if (this.app.tools._suspendNotify) return;
+        const f = this.notesFolder;
+        f.controllers.slice().forEach(c => c.destroy());
+        f.folders.slice().forEach(sub => sub.destroy());
+
+        const notes = this.app.tools.notes;
+        if (notes.length === 0) {
+            f.add({ none: '(press N in edit mode)' }, 'none').name('empty').disable();
+            return;
+        }
+        notes.forEach((n, i) => {
+            const label = n.text.length > 26 ? n.text.slice(0, 26) + '…' : n.text;
+            const sub = f.addFolder(`${i + 1}. ${label}`);
+            sub.close();
+            const acts = {
+                go: () => this.app.tools.gotoNote(i),
+                edit: () => this.app.tools.editNote(i),
+                remove: () => this.app.tools.deleteNote(i)
+            };
+            sub.add(acts, 'go').name('go to');
+            sub.add(acts, 'edit').name('edit text');
+            sub.add(acts, 'remove').name('✕ delete');
+        });
+        f.add({ clear: () => {
+            if (confirm(`Delete all ${notes.length} notes?`)) this.app.tools.clearNotes();
+        } }, 'clear').name('✕ delete all');
     }
 
     copyConfig() {

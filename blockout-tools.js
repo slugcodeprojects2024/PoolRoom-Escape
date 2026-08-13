@@ -151,9 +151,11 @@ export class BlockoutTools {
             this.pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
             this.raycaster.setFromCamera(this.pointer, this.camera);
 
+            // Sprites are much easier to hit than the small pins
             const targets = [
                 ...this.props.map(p => p.mesh),
                 ...this.notes.map(n => n.pin),
+                ...this.notes.map(n => n.sprite),
                 ...this.app.blockout.root.children
             ];
             const hit = this.raycaster.intersectObjects(targets, true)[0];
@@ -164,7 +166,7 @@ export class BlockoutTools {
 
     ownerOf(obj) {
         for (const p of this.props) if (p.mesh === obj) return p.mesh;
-        for (const n of this.notes) if (n.pin === obj) return n.pin;
+        for (const n of this.notes) if (n.pin === obj || n.sprite === obj) return n.pin;
         return obj;
     }
 
@@ -233,12 +235,7 @@ export class BlockoutTools {
             return this.deselect();
         }
         const ni = this.notes.findIndex(n => n.pin === this.selected);
-        if (ni >= 0) {
-            this.group.remove(this.notes[ni].pin);
-            this.group.remove(this.notes[ni].sprite);
-            this.notes.splice(ni, 1);
-            return this.deselect();
-        }
+        if (ni >= 0) { this.deleteNote(ni); return this.deselect(); }
         // Generated geometry: hide rather than delete, since a rebuild
         // regenerates it from LEVEL anyway.
         this.selected.visible = false;
@@ -265,11 +262,35 @@ export class BlockoutTools {
         this.group.add(sprite);
 
         this.notes.push({ id: pin.userData.note.id, text: body, pin, sprite });
+        this.onNotesChanged?.();
         return pin;
     }
 
-    editSelectedNote() {
-        const n = this.notes.find(n => n.pin === this.selected);
+    deleteNote(index) {
+        const n = this.notes[index];
+        if (!n) return;
+        this.group.remove(n.pin);
+        this.group.remove(n.sprite);
+        n.pin.geometry.dispose();
+        this.notes.splice(index, 1);
+        if (this.selected === n.pin) this.deselect();
+        this.onNotesChanged?.();
+    }
+
+    clearNotes() {
+        while (this.notes.length) this.deleteNote(0);
+    }
+
+    gotoNote(index) {
+        const n = this.notes[index];
+        if (!n) return;
+        const p = n.pin.position;
+        this.app.controls.setPosition(p.x, p.y + 2, p.z + 6);
+        this.select(n.pin);
+    }
+
+    editNote(index) {
+        const n = this.notes[index];
         if (!n) return;
         const next = prompt('Edit note:', n.text);
         if (next === null) return;
@@ -279,6 +300,12 @@ export class BlockoutTools {
         n.sprite = noteSprite(next);
         n.sprite.position.copy(n.pin.position).add(new THREE.Vector3(0, 3, 0));
         this.group.add(n.sprite);
+        this.onNotesChanged?.();
+    }
+
+    editSelectedNote() {
+        const i = this.notes.findIndex(n => n.pin === this.selected);
+        if (i >= 0) this.editNote(i);
     }
 
     // Keep sprites above their pins when a pin is dragged
@@ -326,6 +353,7 @@ export class BlockoutTools {
             mesh.rotation.fromArray(p.rotation);
             mesh.scale.fromArray(p.scale);
         }
+        this._suspendNotify = true;
         for (const n of data.notes || []) {
             const pin = this.addNoteAtCrosshair(n.text);
             if (pin) {

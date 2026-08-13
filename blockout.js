@@ -22,7 +22,13 @@ const MAT = {
     trunk:    new THREE.MeshStandardMaterial({ color: 0x6b5238, roughness: 0.9 }),
     foliage:  new THREE.MeshStandardMaterial({ color: 0x5f8f42, roughness: 1.0 }),
     shaft:    new THREE.MeshStandardMaterial({ color: 0x2b4450, roughness: 0.9 }),
-    rock:     new THREE.MeshStandardMaterial({ color: 0x8a8175, roughness: 1.0 })
+    rock:     new THREE.MeshStandardMaterial({ color: 0x8a8175, roughness: 1.0 }),
+    // Distinct tint per body of water so they read apart at a glance
+    waterPool:   new THREE.MeshStandardMaterial({ color: 0x3fa0d8, roughness: 0.12, transparent: true, opacity: 0.5 }),
+    waterGrotto: new THREE.MeshStandardMaterial({ color: 0x2fc4b0, roughness: 0.12, transparent: true, opacity: 0.5 }),
+    waterSpa:    new THREE.MeshStandardMaterial({ color: 0x8ad4e8, roughness: 0.10, transparent: true, opacity: 0.55 }),
+    waterPond:   new THREE.MeshStandardMaterial({ color: 0x4f8f6a, roughness: 0.2,  transparent: true, opacity: 0.6 }),
+    waterFall:   new THREE.MeshStandardMaterial({ color: 0xa8e4f0, roughness: 0.1,  transparent: true, opacity: 0.7 })
 };
 
 export class Blockout {
@@ -57,6 +63,33 @@ export class Blockout {
         this.root.add(mesh);
         if (solid) this.collision.push(mesh);
         return mesh;
+    }
+
+    // Horizontal colour bands every metre, darkening with depth, with a
+    // brighter stripe every 5 m. Reads like a bathymetric chart — you can
+    // judge how deep you are without a HUD.
+    bandMaterial(depth, maxDepth, hue) {
+        const t = Math.min(1, depth / Math.max(1, maxDepth));
+        const c = new THREE.Color().setHSL(hue, 0.55, 0.62 - t * 0.42);
+        if (depth % 5 < 1 && depth > 0) c.offsetHSL(0, 0.15, 0.12);
+        return new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 });
+    }
+
+    // Stacked 1 m bands forming one wall of a rectangular basin.
+    depthBandWall(w, d, x, z, top, bottom, hue, rotY = 0) {
+        const total = top - bottom;
+        for (let i = 0; i < Math.ceil(total); i++) {
+            const h = Math.min(1, total - i);
+            const yTop = top - i;
+            const m = new THREE.Mesh(
+                new THREE.BoxGeometry(w, h, d),
+                this.bandMaterial(i, total, hue)
+            );
+            m.position.set(x, yTop - h / 2, z);
+            m.rotation.y = rotY;
+            m.userData.noCast = true;
+            this.add(m, false);
+        }
     }
 
     box(w, h, d, mat, x, y, z) {
@@ -187,31 +220,38 @@ export class Blockout {
         bottom.userData.noCast = true;
         this.add(bottom);
 
-        const walls = [
-            [P.width, 0.4, 0, -hd], [P.width, 0.4, 0, hd],
-            [0.4, P.depth, -hw, 0], [0.4, P.depth, hw, 0]
-        ];
-        for (const [w, d, x, z] of walls) {
-            this.add(this.box(w, P.depthBelow, d, MAT.poolWall, x, -P.depthBelow / 2, z), false);
-        }
+        // Banded walls: one metre per band, brighter every five
+        this.depthBandWall(P.width, 0.4, 0, -hd, 0, -P.depthBelow, 0.55);
+        this.depthBandWall(P.width, 0.4, 0,  hd, 0, -P.depthBelow, 0.55);
+        this.depthBandWall(0.4, P.depth, -hw, 0, 0, -P.depthBelow, 0.55);
+        this.depthBandWall(0.4, P.depth,  hw, 0, 0, -P.depthBelow, 0.55);
 
         // Side passages. Believable pool depth, unbelievable shafts leading off it.
         const pw = P.passageWidth;
         for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
             const px = dx * (hw + pw / 2);
             const pz = dz * (hd + pw / 2);
-            const shaft = this.box(
-                dx !== 0 ? pw : pw * 1.6,
-                P.passageDepth,
-                dz !== 0 ? pw : pw * 1.6,
-                MAT.shaft,
-                px, -P.depthBelow - P.passageDepth / 2 + 2, pz
-            );
-            shaft.userData.noCast = true;
-            this.root.add(shaft);
+            const sw = dx !== 0 ? pw : pw * 1.6;
+            const sd = dz !== 0 ? pw : pw * 1.6;
+            // Banded every 5 m rather than every 1 m — 60 m of shaft needs a
+            // coarser scale to stay readable
+            const top = -P.depthBelow + 2;
+            for (let i = 0; i < P.passageDepth / 5; i++) {
+                const t = i / (P.passageDepth / 5);
+                const seg = new THREE.Mesh(
+                    new THREE.BoxGeometry(sw, 5, sd),
+                    new THREE.MeshStandardMaterial({
+                        color: new THREE.Color().setHSL(0.55, 0.5, 0.34 - t * 0.28),
+                        roughness: 0.9
+                    })
+                );
+                seg.position.set(px, top - i * 5 - 2.5, pz);
+                seg.userData.noCast = true;
+                this.root.add(seg);
+            }
         }
 
-        const water = this.box(P.width, 0.05, P.depth, MAT.water, 0, P.waterLevel, 0);
+        const water = this.box(P.width, 0.05, P.depth, MAT.waterPool, 0, P.waterLevel, 0);
         water.userData.noCast = true;
         this.root.add(water);
         this.water = water;
@@ -290,7 +330,7 @@ export class Blockout {
             } else if (w.enclosure === 'nature') {
                 // Pond, trees, and walkways to wander
                 const pondR = Math.min(w.width, w.depth) * 0.3;
-                const pond = new THREE.Mesh(new THREE.CircleGeometry(pondR, 32), MAT.water);
+                const pond = new THREE.Mesh(new THREE.CircleGeometry(pondR, 32), MAT.waterPond);
                 pond.rotation.x = -Math.PI / 2;
                 pond.position.set(cx, 0.15, cz);
                 pond.userData.noCast = true;
@@ -457,14 +497,18 @@ export class Blockout {
     buildGrotto(cx, cz, wing) {
         const G = LEVEL.grotto;
 
-        const basin = new THREE.Mesh(
-            new THREE.CylinderGeometry(G.basinRadius, G.basinRadius * 0.85, G.basinDepth, 40),
-            MAT.poolWall
-        );
-        basin.position.set(cx, -G.basinDepth / 2, cz);
-        this.add(basin, false);
+        for (let i = 0; i < Math.ceil(G.basinDepth); i++) {
+            const h = Math.min(1, G.basinDepth - i);
+            const ring = new THREE.Mesh(
+                new THREE.CylinderGeometry(G.basinRadius, G.basinRadius * 0.92, h, 40),
+                this.bandMaterial(i, G.basinDepth, 0.46)
+            );
+            ring.position.set(cx, -i - h / 2, cz);
+            ring.userData.noCast = true;
+            this.add(ring, false);
+        }
 
-        const water = new THREE.Mesh(new THREE.CircleGeometry(G.basinRadius - 0.4, 40), MAT.water);
+        const water = new THREE.Mesh(new THREE.CircleGeometry(G.basinRadius - 0.4, 40), MAT.waterGrotto);
         water.rotation.x = -Math.PI / 2;
         water.position.set(cx, -0.2, cz);
         water.userData.noCast = true;
@@ -484,7 +528,7 @@ export class Blockout {
         this.add(caveFloor);
 
         // The waterfall curtain you swim through to get in
-        const fall = this.box(G.waterfallWidth, G.waterfallDrop, 0.35, MAT.water,
+        const fall = this.box(G.waterfallWidth, G.waterfallDrop, 0.35, MAT.waterFall,
                               cx, G.caveHeight - G.waterfallDrop / 2, caveZ + G.caveDepth / 2);
         fall.userData.noCast = true;
         this.root.add(fall);
@@ -507,7 +551,7 @@ export class Blockout {
         );
         spa.position.set(cx, G.spaLift / 2 - 0.4, spaZ);
         this.add(spa, false);
-        const spaWater = new THREE.Mesh(new THREE.CircleGeometry(G.spaRadius - 0.5, 28), MAT.water);
+        const spaWater = new THREE.Mesh(new THREE.CircleGeometry(G.spaRadius - 0.5, 28), MAT.waterSpa);
         spaWater.rotation.x = -Math.PI / 2;
         spaWater.position.set(cx, G.spaLift + 0.15, spaZ);
         spaWater.userData.noCast = true;
@@ -542,9 +586,11 @@ export class Blockout {
             };
             const pa = a === 'center' ? doorOf(b) : wingCenter(a);
             const pb = b === 'center' ? doorOf(a) : wingCenter(b);
-            // Two axis-aligned legs via a corner, so nothing cuts diagonally
-            // across the plaza grid.
-            const corner = [pb[0], 0, pa[2]];
+            // Two axis-aligned legs via a corner. Which corner matters: for
+            // wing-to-wing the inner corner lands on the origin and drives the
+            // walk straight through the building, so take the outer one.
+            const wingToWing = a !== 'center' && b !== 'center';
+            const corner = wingToWing ? [pa[0], 0, pb[2]] : [pb[0], 0, pa[2]];
             this.connectorLeg(pa, corner, C);
             this.connectorLeg(corner, pb, C);
         }
