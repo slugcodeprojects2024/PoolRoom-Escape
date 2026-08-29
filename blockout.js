@@ -23,6 +23,24 @@ const MAT = {
     foliage:  new THREE.MeshStandardMaterial({ color: 0x5f8f42, roughness: 1.0 }),
     shaft:    new THREE.MeshStandardMaterial({ color: 0x2b4450, roughness: 0.9 }),
     rock:     new THREE.MeshStandardMaterial({ color: 0x8a8175, roughness: 1.0 }),
+    thatch:   new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 1.0 }),
+    wood:     new THREE.MeshStandardMaterial({ color: 0x8a6134, roughness: 0.85 }),
+    gravel:   new THREE.MeshStandardMaterial({ color: 0xd8d3c6, roughness: 1.0 }),
+    dg:        new THREE.MeshStandardMaterial({ color: 0xcfc3ab, roughness: 1.0 }),
+    terracotta:new THREE.MeshStandardMaterial({ color: 0xc4664a, roughness: 0.95 }),
+    concrete:  new THREE.MeshStandardMaterial({ color: 0xe0ddd5, roughness: 0.9 }),
+    mulch:     new THREE.MeshStandardMaterial({ color: 0x6b5745, roughness: 1.0 }),
+    grass:     new THREE.MeshStandardMaterial({ color: 0x8fae4e, roughness: 1.0 }),
+    canopy:    new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.6, metalness: 0.2 }),
+    seatRed:   new THREE.MeshStandardMaterial({ color: 0xe23b34, roughness: 0.5 }),
+    seatLime:  new THREE.MeshStandardMaterial({ color: 0xc2d63f, roughness: 0.5 }),
+    tableTop:  new THREE.MeshStandardMaterial({ color: 0xd8d5cc, roughness: 0.4 }),
+    signPost:  new THREE.MeshStandardMaterial({ color: 0xd9e04a, roughness: 0.5 }),
+    conifer:  new THREE.MeshStandardMaterial({ color: 0x2f5c3a, roughness: 1.0 }),
+    maple:    new THREE.MeshStandardMaterial({ color: 0x7fb04a, roughness: 1.0 }),
+    shrub:    new THREE.MeshStandardMaterial({ color: 0x4a7a3d, roughness: 1.0 }),
+    groundcover: new THREE.MeshStandardMaterial({ color: 0x6d9c4e, roughness: 1.0 }),
+    metal:    new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.5, metalness: 0.3 }),
     // Distinct tint per body of water so they read apart at a glance
     waterPool:   new THREE.MeshStandardMaterial({ color: 0x3fa0d8, roughness: 0.12, transparent: true, opacity: 0.5 }),
     waterGrotto: new THREE.MeshStandardMaterial({ color: 0x2fc4b0, roughness: 0.12, transparent: true, opacity: 0.5 }),
@@ -226,28 +244,46 @@ export class Blockout {
         this.depthBandWall(0.4, P.depth, -hw, 0, 0, -P.depthBelow, 0.55);
         this.depthBandWall(0.4, P.depth,  hw, 0, 0, -P.depthBelow, 0.55);
 
-        // Side passages. Believable pool depth, unbelievable shafts leading off it.
+        // Three short alcoves plus one long descent. Only the deep one
+        // breaks physical plausibility, which is what makes it read as
+        // intentional rather than as a modelling accident.
         const pw = P.passageWidth;
-        for (const [dx, dz] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const sides = [['-x', -1, 0], ['+x', 1, 0], ['-z', 0, -1], ['+z', 0, 1]];
+        this.descentMouth = null;
+
+        for (const [name, dx, dz] of sides) {
+            const isDescent = name === P.descentSide;
+            const len = isDescent ? P.passageDepth : P.alcoveDepth;
             const px = dx * (hw + pw / 2);
             const pz = dz * (hd + pw / 2);
-            const sw = dx !== 0 ? pw : pw * 1.6;
-            const sd = dz !== 0 ? pw : pw * 1.6;
-            // Banded every 5 m rather than every 1 m — 60 m of shaft needs a
-            // coarser scale to stay readable
-            const top = -P.depthBelow + 2;
-            for (let i = 0; i < P.passageDepth / 5; i++) {
-                const t = i / (P.passageDepth / 5);
-                const seg = new THREE.Mesh(
-                    new THREE.BoxGeometry(sw, 5, sd),
-                    new THREE.MeshStandardMaterial({
-                        color: new THREE.Color().setHSL(0.55, 0.5, 0.34 - t * 0.28),
-                        roughness: 0.9
-                    })
-                );
-                seg.position.set(px, top - i * 5 - 2.5, pz);
-                seg.userData.noCast = true;
-                this.root.add(seg);
+
+            if (isDescent) {
+                // Vertical shaft dropping away from the pool floor
+                const bandH = 10;
+                const top = -P.depthBelow;
+                for (let i = 0; i < Math.ceil(len / bandH); i++) {
+                    const t = i / (len / bandH);
+                    const seg = new THREE.Mesh(
+                        new THREE.BoxGeometry(pw * 1.5, bandH, pw * 1.5),
+                        new THREE.MeshStandardMaterial({
+                            color: new THREE.Color().setHSL(0.56, 0.5, 0.30 - t * 0.27),
+                            roughness: 0.95
+                        })
+                    );
+                    seg.position.set(px, top - i * bandH - bandH / 2, pz);
+                    seg.userData.noCast = true;
+                    this.root.add(seg);
+                }
+                this.descentMouth = new THREE.Vector3(px, top, pz);
+            } else {
+                // Horizontal alcove at the pool floor
+                const aw = dx !== 0 ? len : pw;
+                const ad = dz !== 0 ? len : pw;
+                const ax = dx * (hw + (dx !== 0 ? len / 2 : 0));
+                const az = dz * (hd + (dz !== 0 ? len / 2 : 0));
+                const alcove = this.box(aw, 4.5, ad, MAT.shaft, ax, -P.depthBelow + 2.25, az);
+                alcove.userData.noCast = true;
+                this.root.add(alcove);
             }
         }
 
@@ -308,6 +344,11 @@ export class Blockout {
             slab.userData.noCast = true;
             this.add(slab);
 
+            // Dispatch by enclosure first. Nature and grotto are open
+            // landscapes with height 0, so a height guard here would skip
+            // them entirely — which it did.
+            if (w.enclosure === 'nature') { this.buildNature(cx, cz, w); continue; }
+            if (w.enclosure === 'grotto') { this.buildGrotto(cx, cz, w); continue; }
             if (w.height <= 0) continue;
 
             if (w.enclosure === 'open') {
@@ -327,41 +368,6 @@ export class Blockout {
                     }
                 }
                 this.add(this.box(w.width, 1.2, w.depth, MAT.wing, cx, w.height, cz), false);
-            } else if (w.enclosure === 'nature') {
-                // Pond, trees, and walkways to wander
-                const pondR = Math.min(w.width, w.depth) * 0.3;
-                const pond = new THREE.Mesh(new THREE.CircleGeometry(pondR, 32), MAT.waterPond);
-                pond.rotation.x = -Math.PI / 2;
-                pond.position.set(cx, 0.15, cz);
-                pond.userData.noCast = true;
-                this.root.add(pond);
-
-                const basin = new THREE.Mesh(new THREE.CylinderGeometry(pondR, pondR * 0.8, 3, 32), MAT.poolWall);
-                basin.position.set(cx, -1.5, cz);
-                this.add(basin, false);
-
-                const trunk = new THREE.CylinderGeometry(0.4, 0.55, 6, 8);
-                const canopy = new THREE.SphereGeometry(3.4, 10, 8);
-                for (let i = 0; i < 14; i++) {
-                    const a = (i / 14) * Math.PI * 2 + Math.random();
-                    const r = pondR + 5 + Math.random() * (w.width / 2 - pondR - 6);
-                    const tx = cx + Math.cos(a) * r, tz = cz + Math.sin(a) * r;
-                    this.add(new THREE.Mesh(trunk, MAT.trunk).translateX(tx).translateY(3).translateZ(tz), false);
-                    const c = new THREE.Mesh(canopy, MAT.foliage);
-                    c.position.set(tx, 7.5, tz);
-                    c.scale.set(1, 0.8, 1);
-                    this.root.add(c);
-                }
-
-                for (const ang of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-                    const path = this.box(3.5, 0.3, w.depth / 2, MAT.plaza,
-                        cx + Math.cos(ang) * (pondR + w.width / 6),
-                        0.1,
-                        cz + Math.sin(ang) * (pondR + w.depth / 6));
-                    path.rotation.y = ang;
-                    path.userData.noCast = true;
-                    this.add(path);
-                }
             } else if (w.enclosure === 'indoor') {
                 // Museum: enclosed, with internal hallways and exhibit bays
                 const t = 1.0;
@@ -393,8 +399,6 @@ export class Blockout {
                     this.add(this.box(w.width, 0.8, w.depth / 2 - 5, MAT.wing,
                                       cx, w.height, cz + sgn * (w.depth / 4 + 2.5)), false);
                 }
-            } else if (w.enclosure === 'grotto') {
-                this.buildGrotto(cx, cz, w);
             }
         }
     }
@@ -497,81 +501,348 @@ export class Blockout {
     buildGrotto(cx, cz, wing) {
         const G = LEVEL.grotto;
 
-        for (let i = 0; i < Math.ceil(G.basinDepth); i++) {
-            const h = Math.min(1, G.basinDepth - i);
+        // Shallow shelf ring first, deep lagoon cut into it
+        const shelf = new THREE.Mesh(
+            new THREE.CylinderGeometry(G.shelfRadius, G.shelfRadius, G.shelfDepth, 48),
+            MAT.poolWall
+        );
+        shelf.position.set(cx, -G.shelfDepth / 2, cz);
+        shelf.userData.noCast = true;
+        this.add(shelf, false);
+
+        for (let i = 0; i < Math.ceil(G.lagoonDepth); i++) {
+            const h = Math.min(1, G.lagoonDepth - i);
             const ring = new THREE.Mesh(
-                new THREE.CylinderGeometry(G.basinRadius, G.basinRadius * 0.92, h, 40),
-                this.bandMaterial(i, G.basinDepth, 0.46)
+                new THREE.CylinderGeometry(G.lagoonRadius, G.lagoonRadius * 0.94, h, 48),
+                this.bandMaterial(i, G.lagoonDepth, 0.46)
             );
             ring.position.set(cx, -i - h / 2, cz);
             ring.userData.noCast = true;
             this.add(ring, false);
         }
 
-        const water = new THREE.Mesh(new THREE.CircleGeometry(G.basinRadius - 0.4, 40), MAT.waterGrotto);
+        const water = new THREE.Mesh(new THREE.CircleGeometry(G.shelfRadius - 0.5, 48), MAT.waterGrotto);
         water.rotation.x = -Math.PI / 2;
         water.position.set(cx, -0.2, cz);
         water.userData.noCast = true;
         this.root.add(water);
 
-        // Cave on the far side, its mouth facing the basin
-        const caveZ = cz - G.basinRadius - G.caveDepth / 2 + 3;
-        this.add(this.box(G.caveWidth, G.caveHeight, 1.2, MAT.rock, cx, G.caveHeight / 2, caveZ - G.caveDepth / 2), false);
+        // Rock massif on the -Z side, cave hollowed behind it
+        const mz = cz - G.lagoonRadius - G.massifDepth / 2 + 4;
         for (const sgn of [-1, 1]) {
-            this.add(this.box(1.2, G.caveHeight, G.caveDepth, MAT.rock,
-                              cx + sgn * G.caveWidth / 2, G.caveHeight / 2, caveZ), false);
+            this.add(this.box((G.massifWidth - G.caveWidth) / 2, G.massifHeight, G.massifDepth, MAT.rock,
+                cx + sgn * (G.caveWidth + (G.massifWidth - G.caveWidth) / 2) / 2, G.massifHeight / 2, mz), false);
         }
-        this.add(this.box(G.caveWidth + 2.4, 1.0, G.caveDepth + 1.2, MAT.rock, cx, G.caveHeight, caveZ), false);
+        this.add(this.box(G.massifWidth, G.massifHeight - G.caveHeight, G.massifDepth, MAT.rock,
+            cx, G.caveHeight + (G.massifHeight - G.caveHeight) / 2, mz), false);
+        this.add(this.box(G.caveWidth, G.caveHeight, 1.2, MAT.rock,
+            cx, G.caveHeight / 2, mz - G.massifDepth / 2), false);
 
-        const caveFloor = this.box(G.caveWidth, 0.4, G.caveDepth, MAT.rock, cx, -0.2, caveZ);
+        const caveFloor = this.box(G.caveWidth, 0.4, G.caveDepth, MAT.rock, cx, -0.2, mz);
         caveFloor.userData.noCast = true;
         this.add(caveFloor);
 
-        // The waterfall curtain you swim through to get in
-        const fall = this.box(G.waterfallWidth, G.waterfallDrop, 0.35, MAT.waterFall,
-                              cx, G.caveHeight - G.waterfallDrop / 2, caveZ + G.caveDepth / 2);
+        // The waterfall curtain — swimming through it is the only way in
+        const fall = this.box(G.waterfallWidth, G.waterfallDrop, 0.4, MAT.waterFall,
+            cx, G.caveHeight - G.waterfallDrop / 2, mz + G.massifDepth / 2);
         fall.userData.noCast = true;
         this.root.add(fall);
 
-        // Swim-up bar inside the cave, stools on the water side
-        this.add(this.box(G.barLength, 1.1, 1.4, MAT.wing, cx, 0.55, caveZ - 2), false);
+        this.add(this.box(G.barLength, 1.1, 1.4, MAT.wing, cx, 0.55, mz - 3), false);
         for (let i = 0; i < G.stoolCount; i++) {
             const sx = cx - G.barLength / 2 + (i + 0.5) * (G.barLength / G.stoolCount);
-            this.add(this.box(0.9, 0.6, 0.9, MAT.pillar, sx, 0.3, caveZ - 0.2), false);
+            this.add(this.box(0.9, 0.7, 0.9, MAT.pillar, sx, 0.35, mz - 1.2), false);
         }
+        this.add(this.box(G.caveWidth - 4, 0.5, 1.2, MAT.rock, cx, 0.25, mz - G.caveDepth / 2 + 1.4), false);
 
-        // Bench seating along the cave's back wall
-        this.add(this.box(G.caveWidth - 3, 0.5, 1.2, MAT.rock, cx, 0.25, caveZ - G.caveDepth / 2 + 1.4), false);
-
-        // Raised spa spilling into the basin
-        const spaZ = cz + G.basinRadius * 0.55;
-        const spa = new THREE.Mesh(
-            new THREE.CylinderGeometry(G.spaRadius, G.spaRadius, G.spaLift + 1.2, 28),
-            MAT.rock
-        );
-        spa.position.set(cx, G.spaLift / 2 - 0.4, spaZ);
-        this.add(spa, false);
-        const spaWater = new THREE.Mesh(new THREE.CircleGeometry(G.spaRadius - 0.5, 28), MAT.waterSpa);
+        // Raised spa spilling into the lagoon
+        const spaZ = cz + G.lagoonRadius * 0.5;
+        const spaX = cx + G.lagoonRadius * 0.5;
+        this.add(new THREE.Mesh(
+            new THREE.CylinderGeometry(G.spaRadius, G.spaRadius, G.spaLift + 1.4, 28), MAT.rock
+        ).translateX(spaX).translateY(G.spaLift / 2 - 0.5).translateZ(spaZ), false);
+        const spaWater = new THREE.Mesh(new THREE.CircleGeometry(G.spaRadius - 0.6, 28), MAT.waterSpa);
         spaWater.rotation.x = -Math.PI / 2;
-        spaWater.position.set(cx, G.spaLift + 0.15, spaZ);
+        spaWater.position.set(spaX, G.spaLift + 0.2, spaZ);
         spaWater.userData.noCast = true;
         this.root.add(spaWater);
 
-        // Dry patio approach from the plaza side
-        const patio = this.box(wing.width * 0.5, 0.4, 8, MAT.plaza, cx, 0.05, cz + G.basinRadius + 5);
+        // Slide: starts on top of the massif and lands in the lagoon.
+        // Anchored at both ends and propped, so it can't float over the plaza.
+        const steps = 18;
+        for (let i = 0; i < steps; i++) {
+            const t = i / (steps - 1);
+            const a = Math.PI * 1.15 + t * Math.PI * 0.62;
+            const r = G.lagoonRadius * (0.95 - t * 0.35);
+            const x = cx + Math.cos(a) * r;
+            const z = cz + Math.sin(a) * r;
+            const y = G.slideHeight * (1 - t) * (1 - t) + 0.4;
+
+            const seg = this.box(3.4, 0.35, 4.2, MAT.furniture, x, y, z);
+            seg.rotation.y = -a;
+            this.add(seg, false);
+
+            if (i % 3 === 0 && y > 1.6) {
+                this.add(this.box(0.45, y, 0.45, MAT.pillar, x, y / 2, z), false);
+            }
+        }
+
+        // Palapas standing in the shallow shelf
+        for (let i = 0; i < G.palapaCount; i++) {
+            const a = Math.PI * 0.25 + (i / G.palapaCount) * Math.PI * 0.7;
+            const r = (G.lagoonRadius + G.shelfRadius) / 2;
+            const px = cx + Math.cos(a) * r, pz = cz + Math.sin(a) * r;
+            this.add(this.box(0.4, 3.4, 0.4, MAT.trunk, px, 1.7, pz), false);
+            this.add(new THREE.Mesh(new THREE.ConeGeometry(4.2, 1.5, 10), MAT.thatch)
+                .translateX(px).translateY(4.1).translateZ(pz), false);
+        }
+
+        const patio = this.box(wing.width * 0.45, 0.4, 9, MAT.plaza, cx - 10, 0.05, cz + G.shelfRadius + 5);
         patio.userData.noCast = true;
         this.add(patio);
 
-        // Rockwork ring
         for (let i = 0; i < G.rockCount; i++) {
             const a = (i / G.rockCount) * Math.PI * 2;
-            const r = G.basinRadius + 2.5 + Math.random() * 2;
-            const sz = 1.6 + Math.random() * 2.6;
+            const r = G.shelfRadius + 2.5 + Math.random() * 3;
+            const sz = 1.8 + Math.random() * 3;
             const rock = this.box(sz, sz * 0.8, sz, MAT.rock,
-                                  cx + Math.cos(a) * r, sz * 0.3, cz + Math.sin(a) * r);
+                cx + Math.cos(a) * r, sz * 0.3, cz + Math.sin(a) * r);
             rock.rotation.y = Math.random() * Math.PI;
             this.add(rock, false);
         }
+
+        for (let i = 0; i < G.palmCount; i++) {
+            const a = (i / G.palmCount) * Math.PI * 2 + 0.3;
+            const r = G.shelfRadius + 7 + Math.random() * 6;
+            const px = cx + Math.cos(a) * r, pz = cz + Math.sin(a) * r;
+            this.add(this.box(0.4, 8, 0.4, MAT.trunk, px, 4, pz), false);
+            const crown = new THREE.Mesh(new THREE.SphereGeometry(3, 8, 6), MAT.foliage);
+            crown.position.set(px, 8.5, pz);
+            crown.scale.set(1, 0.5, 1);
+            this.root.add(crown);
+        }
+
+        this.buildRiver(cx, cz, G);
+    }
+
+    // One-way channel, grotto to nature. Registered as a current volume so
+    // the controller can push the player along it.
+    buildRiver(gx, gz, G) {
+        const R = LEVEL.river;
+        const nature = wingCenter('nature');
+        const start = new THREE.Vector3(gx, 0, gz + G.shelfRadius);
+        const end = new THREE.Vector3(nature[0] + 18, 0, nature[2] - 14);
+
+        this.riverPath = [];
+        const ctrlX = gx + 6, ctrlZ = (start.z + end.z) / 2;
+
+        for (let i = 0; i <= R.segments; i++) {
+            const t = i / R.segments;
+            const mt = 1 - t;
+            const x = mt * mt * start.x + 2 * mt * t * ctrlX + t * t * end.x;
+            const z = mt * mt * start.z + 2 * mt * t * ctrlZ + t * t * end.z;
+            this.riverPath.push(new THREE.Vector3(x, 0, z));
+        }
+
+        for (let i = 0; i < this.riverPath.length - 1; i++) {
+            const a = this.riverPath[i], b = this.riverPath[i + 1];
+            const mid = a.clone().lerp(b, 0.5);
+            const len = a.distanceTo(b) * 1.25;
+            const ang = Math.atan2(b.z - a.z, b.x - a.x);
+
+            const bed = this.box(len, 0.4, R.width, MAT.poolWall, mid.x, -R.depth, mid.z);
+            bed.rotation.y = -ang;
+            bed.userData.noCast = true;
+            this.add(bed);
+
+            for (const sgn of [-1, 1]) {
+                const bank = this.box(len, R.depth + R.bankHeight, 0.8, MAT.rock,
+                    mid.x - Math.sin(-ang) * sgn * (R.width / 2),
+                    (-R.depth + R.bankHeight) / 2,
+                    mid.z - Math.cos(-ang) * sgn * (R.width / 2));
+                bank.rotation.y = -ang;
+                this.add(bank, false);
+            }
+
+            const surf = this.box(len, 0.05, R.width - 0.6, MAT.waterGrotto, mid.x, -0.25, mid.z);
+            surf.rotation.y = -ang;
+            surf.userData.noCast = true;
+            this.root.add(surf);
+        }
+    }
+
+    // Corporate campus landscape: sparse planting, decomposed granite,
+    // colour-blocked paving, coloured furniture, shade canopies. The river
+    // arrives as a rill and ends in a shallow reflecting basin.
+    buildNature(cx, cz, wing) {
+        const W = wing.width, D = wing.depth;
+
+        // Ground plane in two paving tones with a concrete edge band between
+        const deck = this.box(W, 0.3, D, MAT.dg, cx, 0.1, cz);
+        deck.userData.noCast = true;
+        this.add(deck);
+
+        const terrace = this.box(W * 0.42, 0.34, D * 0.44, MAT.terracotta,
+                                 cx + W * 0.16, 0.14, cz + D * 0.12);
+        terrace.userData.noCast = true;
+        this.add(terrace);
+
+        for (const [bx, bz, bw, bd] of [
+            [cx + W * 0.16, cz + D * 0.12 - D * 0.22, W * 0.42, 0.5],
+            [cx + W * 0.16, cz + D * 0.12 + D * 0.22, W * 0.42, 0.5],
+            [cx + W * 0.16 - W * 0.21, cz + D * 0.12, 0.5, D * 0.44],
+            [cx + W * 0.16 + W * 0.21, cz + D * 0.12, 0.5, D * 0.44]
+        ]) {
+            const band = this.box(bw, 0.36, bd, MAT.concrete, bx, 0.15, bz);
+            band.userData.noCast = true;
+            this.add(band);
+        }
+
+        // The rill: river arrives, runs straight through the paving, ends in
+        // a shallow basin. This is the join the plan always needed.
+        const rillZ = cz - D * 0.18;
+        const rillLen = W * 0.62;
+        const rillX = cx + W * 0.08;
+        const channel = this.box(rillLen, 0.5, LEVEL.river.width, MAT.poolWall, rillX, -0.25, rillZ);
+        channel.userData.noCast = true;
+        this.add(channel);
+        const rillWater = this.box(rillLen, 0.05, LEVEL.river.width - 0.8, MAT.waterPond, rillX, -0.05, rillZ);
+        rillWater.userData.noCast = true;
+        this.root.add(rillWater);
+        for (const sgn of [-1, 1]) {
+            const kerb = this.box(rillLen, 0.45, 0.6, MAT.concrete,
+                                  rillX, 0.15, rillZ + sgn * (LEVEL.river.width / 2 + 0.3));
+            kerb.userData.noCast = true;
+            this.add(kerb);
+        }
+
+        // Reflecting basin at the end of the rill
+        const basinR = 11;
+        const bx = rillX - rillLen / 2 - basinR + 2;
+        for (let i = 0; i < 2; i++) {
+            const ring = new THREE.Mesh(
+                new THREE.CylinderGeometry(basinR - i * 0.6, basinR - (i + 1) * 0.8, 1, 40),
+                this.bandMaterial(i, 2, 0.32)
+            );
+            ring.position.set(bx, -i - 0.5, rillZ);
+            ring.userData.noCast = true;
+            this.add(ring, false);
+        }
+        const basinWater = new THREE.Mesh(new THREE.CircleGeometry(basinR - 0.4, 40), MAT.waterPond);
+        basinWater.rotation.x = -Math.PI / 2;
+        basinWater.position.set(bx, -0.1, rillZ);
+        basinWater.userData.noCast = true;
+        this.root.add(basinWater);
+
+        // Planting beds: mulch with clustered ornamental grasses, low and loose
+        const beds = [
+            [cx - W * 0.28, cz - D * 0.02, 16, 12],
+            [cx - W * 0.06, cz + D * 0.30, 22, 10],
+            [cx + W * 0.30, cz - D * 0.30, 14, 14],
+            [cx + W * 0.02, cz - D * 0.36, 20, 8]
+        ];
+        for (const [px, pz, bw, bd] of beds) {
+            const bed = this.box(bw, 0.32, bd, MAT.mulch, px, 0.14, pz);
+            bed.userData.noCast = true;
+            this.add(bed);
+            const n = Math.round(bw * bd / 14);
+            for (let i = 0; i < n; i++) {
+                const gx = px + (Math.random() - 0.5) * (bw - 2);
+                const gz = pz + (Math.random() - 0.5) * (bd - 2);
+                this.grassClump(gx, gz, 0.7 + Math.random() * 0.6);
+            }
+        }
+
+        // Young specimen trees, loosely spaced
+        for (const [tx, tz, sc] of [
+            [cx - W * 0.30, cz - D * 0.26, 1.0], [cx - W * 0.12, cz - D * 0.10, 0.85],
+            [cx + W * 0.04, cz + D * 0.06, 1.1], [cx + W * 0.22, cz + D * 0.30, 0.9],
+            [cx - W * 0.24, cz + D * 0.22, 1.0], [cx + W * 0.34, cz - D * 0.08, 0.8],
+            [cx - W * 0.02, cz + D * 0.34, 0.95], [cx + W * 0.16, cz - D * 0.34, 1.05]
+        ]) {
+            this.youngTree(tx, tz, sc);
+        }
+
+        // Shade canopies over the terrace
+        this.canopy(cx + W * 0.30, cz + D * 0.22, 16, 9);
+        this.canopy(cx - W * 0.30, cz + D * 0.06, 12, 8);
+
+        // Seating clusters, deliberately casual
+        this.seatCluster(cx + W * 0.14, cz + D * 0.10);
+        this.seatCluster(cx + W * 0.26, cz + D * 0.02);
+        this.seatCluster(cx - W * 0.18, cz + D * 0.26);
+
+        // Interpretive sign posts
+        for (const [sx, sz] of [[cx + W * 0.06, cz + D * 0.24], [cx - W * 0.20, cz - D * 0.14]]) {
+            this.add(this.box(0.16, 2.4, 0.16, MAT.signPost, sx, 1.2, sz), false);
+            const face = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 0.08, 20), MAT.concrete);
+            face.rotation.x = Math.PI / 2;
+            face.position.set(sx, 2.5, sz);
+            this.root.add(face);
+        }
+    }
+
+    grassClump(x, z, scale = 1) {
+        const n = 5;
+        for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2;
+            const blade = this.box(0.18 * scale, 1.5 * scale, 0.18 * scale, MAT.grass,
+                x + Math.cos(a) * 0.3 * scale, 0.75 * scale, z + Math.sin(a) * 0.3 * scale);
+            blade.rotation.z = Math.cos(a) * 0.28;
+            blade.rotation.x = Math.sin(a) * 0.28;
+            blade.userData.noCast = true;
+            this.root.add(blade);
+        }
+    }
+
+    youngTree(x, z, scale = 1) {
+        const h = 6.5 * scale;
+        this.add(this.box(0.28 * scale, h, 0.28 * scale, MAT.trunk, x, h / 2, z), false);
+        const crown = new THREE.Mesh(new THREE.SphereGeometry(2.4 * scale, 8, 6), MAT.foliage);
+        crown.position.set(x, h + 1.4 * scale, z);
+        crown.scale.set(1, 1.15, 1);
+        crown.castShadow = true;
+        this.root.add(crown);
+        // Nursery stakes — small detail, reads instantly as a planted campus
+        for (const sgn of [-1, 1]) {
+            const stake = this.box(0.1, 3 * scale, 0.1, MAT.trunk, x + sgn * 0.7 * scale, 1.5 * scale, z);
+            stake.userData.noCast = true;
+            this.root.add(stake);
+        }
+    }
+
+    canopy(x, z, w, d) {
+        const h = 4.2;
+        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+            this.add(this.box(0.22, h, 0.22, MAT.metal,
+                x + sx * (w / 2 - 0.8), h / 2, z + sz * (d / 2 - 0.8)), false);
+        }
+        const roof = this.box(w, 0.22, d, MAT.canopy, x, h, z);
+        this.add(roof, false);
+    }
+
+    seatCluster(x, z) {
+        const colors = [MAT.seatRed, MAT.seatLime, MAT.seatRed];
+        for (let i = 0; i < 3; i++) {
+            const a = (i / 3) * Math.PI * 2 + Math.random();
+            const sx = x + Math.cos(a) * 2.2, sz = z + Math.sin(a) * 2.2;
+            const seat = this.box(0.85, 0.12, 0.85, colors[i], sx, 0.45, sz);
+            seat.rotation.y = -a;
+            this.add(seat, false);
+            const back = this.box(0.85, 0.75, 0.12, colors[i], sx, 0.82, sz);
+            back.rotation.y = -a;
+            back.position.x -= Math.cos(a) * 0.36;
+            back.position.z -= Math.sin(a) * 0.36;
+            this.add(back, false);
+            for (const sgn of [-1, 1]) {
+                this.add(this.box(0.06, 0.45, 0.06, colors[i],
+                    sx + Math.sin(a) * sgn * 0.35, 0.22, sz + Math.cos(a) * sgn * 0.35), false);
+            }
+        }
+        this.add(this.box(0.08, 0.65, 0.08, MAT.metal, x, 0.32, z), false);
+        const top = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.07, 16), MAT.tableTop);
+        top.position.set(x, 0.68, z);
+        this.root.add(top);
     }
 
     buildConnectors() {

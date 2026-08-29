@@ -66,6 +66,10 @@ export class CameraControls {
         // blockout uses and the one the elevator will extend.
         this.groundQuery = options.groundQuery || null;
 
+        // Directional water volumes (lazy river). Each entry is
+        // { point: Vector3, dir: Vector3, radius, strength }.
+        this.currents = [];
+
         this.walkwayBounds = { x: 0, startZ: -480, endZ: -880, width: 80 };
         this.templeBounds = { x: 0, z: -1030, size: 1360, grottoSize: 120 };
 
@@ -193,6 +197,13 @@ export class CameraControls {
         this.velocity.z += (_wish.z * speed - this.velocity.z) * t;
 
         if (swimming) {
+            // Current is added after input, so swimming against it is possible
+            // but slow — that's what makes the return trip a real decision.
+            const c = this.currentAt(this.camera.position);
+            if (c) {
+                this.velocity.x += (c.dir.x * c.strength - this.velocity.x) * Math.min(1, dt * 1.4);
+                this.velocity.z += (c.dir.z * c.strength - this.velocity.z) * Math.min(1, dt * 1.4);
+            }
             this.velocity.y -= this.swimGravity * dt;
             if (this.camera.position.y < this.waterLevel) {
                 this.velocity.y += this.buoyancy * dt;

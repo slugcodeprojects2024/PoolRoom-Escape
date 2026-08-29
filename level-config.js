@@ -24,9 +24,13 @@ const BASE = {
     pool: {
         width: 56,
         depth: 56,
-        depthBelow: 6,          // believable for a real pool
-        passageDepth: 60,       // the side passages are not believable, deliberately
-        passageWidth: 7,
+        depthBelow: 15,         // deep enough to feel like a diving well
+        // Three sides are short alcoves; one is a long descent toward
+        // something. The asymmetry makes the deep one read as deliberate.
+        alcoveDepth: 14,
+        passageDepth: 150,
+        passageWidth: 8,
+        descentSide: '+x',
         waterLevel: -0.15,
         edgeWidth: 1.0
     },
@@ -60,7 +64,7 @@ const BASE = {
     wings: {
         temple:  { dir: [0, -1], gap: 45,  width: 72, depth: 60, height: 20, enclosure: 'open',    label: 'Temple' },
         museum:  { dir: [-1, 0], gap: 70,  width: 66, depth: 56, height: 15, enclosure: 'indoor',  label: 'Museum' },
-        grotto:  { dir: [1, 0],  gap: 95,  width: 52, depth: 46, height: 7,  enclosure: 'grotto',  label: 'Grotto' },
+        grotto:  { dir: [1, 0],  gap: 95,  width: 78, depth: 62, height: 7,  enclosure: 'grotto',  label: 'Grotto' },
         nature:  { dir: [0, 1],  gap: 120, width: 76, depth: 62, height: 0,  enclosure: 'nature',  label: 'Nature' }
     },
 
@@ -84,27 +88,45 @@ const BASE = {
         width: 9,
         height: 6,
         // Routed as right angles through the plaza, not diagonals across it
-        pairs: [['grotto', 'center'], ['grotto', 'nature']]
+        // grotto->nature removed: the lazy river takes that route instead
+        pairs: [['grotto', 'center']]
     },
 
-    // Drawn from real mansion and resort grottos: a waterfall you swim
-    // through, a cave behind it with bench seating and a swim-up bar,
-    // a raised spa spilling into the main basin, and a dry patio entrance.
     grotto: {
-        basinRadius: 15,
-        basinDepth: 2.4,
-        caveWidth: 18,
-        caveDepth: 13,
-        caveHeight: 4.2,
-        waterfallWidth: 7,
-        waterfallDrop: 3.4,
-        spaRadius: 5,
-        spaLift: 1.5,
-        barLength: 9,
-        stoolCount: 4,
-        rockCount: 16
+        lagoonRadius: 22,
+        lagoonDepth: 2.6,
+        shelfRadius: 30,
+        shelfDepth: 0.9,
+        massifWidth: 34,
+        massifDepth: 16,
+        massifHeight: 9,
+        caveWidth: 20,
+        caveDepth: 14,
+        caveHeight: 4.4,
+        waterfallWidth: 9,
+        waterfallDrop: 4.0,
+        barLength: 11,
+        stoolCount: 6,
+        spaRadius: 6,
+        spaLift: 0.6,
+        slideHeight: 9,
+        palapaCount: 3,
+        rockCount: 22,
+        palmCount: 14
     },
 
+    // One-way channel from the grotto to the nature area. Pushes the player
+    // along, so it's fast travel outbound and a decision on the way back.
+    river: {
+        width: 7,
+        depth: 1.6,
+        bankHeight: 0.9,
+        current: 2.6,
+        segments: 30
+    },
+
+    // Covered links so the plaza reads as one complex rather than
+    // separate buildings on a field.
     field: {
         radius: 9000,
         terrainSegments: 180,

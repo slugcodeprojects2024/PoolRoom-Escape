@@ -53,6 +53,7 @@ class BlockoutApp {
             groundQuery: (pos) => this.groundAt(pos)
         });
         this.controls.init();
+        this.registerCurrents();
 
         addEventListener('resize', () => {
             this.camera.aspect = innerWidth / innerHeight;
@@ -62,6 +63,22 @@ class BlockoutApp {
 
         this.hud = document.getElementById('hud');
         this.animate();
+    }
+
+    // Sample the river path into current volumes the controller can query
+    registerCurrents() {
+        const path = this.blockout.riverPath;
+        if (!path) return;
+        this.controls.currents = [];
+        for (let i = 0; i < path.length - 1; i++) {
+            const a = path[i], b = path[i + 1];
+            this.controls.currents.push({
+                point: a.clone().lerp(b, 0.5),
+                dir: b.clone().sub(a).normalize(),
+                radius: LEVEL.river.width * 0.75,
+                strength: LEVEL.river.current
+            });
+        }
     }
 
     wingCenter(name) { return wingCenter(name); }
@@ -74,6 +91,7 @@ class BlockoutApp {
             if (o.isMesh || o.isInstancedMesh) o.geometry?.dispose();
         });
         this.blockout = new Blockout(this.scene).build();
+        this.registerCurrents();
     }
 
     setupSky() {

@@ -44,7 +44,8 @@ export class BlockoutEditor {
         this.num(pool, LEVEL.pool, 'width', 10, 120);
         this.num(pool, LEVEL.pool, 'depth', 10, 120);
         this.num(pool, LEVEL.pool, 'depthBelow', 1, 20).name('depth below');
-        this.num(pool, LEVEL.pool, 'passageDepth', 0, 200).name('passage depth');
+        this.num(pool, LEVEL.pool, 'passageDepth', 0, 400).name('descent depth');
+        this.num(pool, LEVEL.pool, 'alcoveDepth', 0, 60).name('alcove length');
         this.num(pool, LEVEL.pool, 'passageWidth', 2, 20).name('passage w');
 
         const pil = g.addFolder('pillars');
@@ -70,7 +71,16 @@ export class BlockoutEditor {
         }
 
         const gr = g.addFolder('grotto detail');
-        this.num(gr, LEVEL.grotto, 'basinRadius', 4, 40).name('basin r');
+        this.num(gr, LEVEL.grotto, 'lagoonRadius', 6, 50).name('lagoon r');
+        this.num(gr, LEVEL.grotto, 'shelfRadius', 8, 60).name('shelf r');
+        this.num(gr, LEVEL.grotto, 'massifWidth', 10, 60).name('massif w');
+        this.num(gr, LEVEL.grotto, 'massifHeight', 3, 25).name('massif h');
+        this.num(gr, LEVEL.grotto, 'slideHeight', 2, 20).name('slide h');
+        const riv = g.addFolder('river');
+        this.num(riv, LEVEL.river, 'width', 3, 20);
+        this.num(riv, LEVEL.river, 'depth', 0.5, 6, 0.1);
+        riv.add(LEVEL.river, 'current', 0, 8, 0.1).onChange(() => this.app.registerCurrents());
+        riv.close();
         this.num(gr, LEVEL.grotto, 'caveWidth', 4, 50).name('cave w');
         this.num(gr, LEVEL.grotto, 'caveDepth', 4, 40).name('cave d');
         this.num(gr, LEVEL.grotto, 'caveHeight', 2, 15).name('cave h');
